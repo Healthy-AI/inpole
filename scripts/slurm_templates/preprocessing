@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+#SBATCH -A <ACCOUNT>
+#SBATCH -p alvis
+#SBATCH -N 1
+#SBATCH --gpus-per-node=T4:1
+#SBATCH -t 0-1:0  # days-hours:minutes
+#SBATCH --output=<EXPERIMENT_PATH>/logs/%x_%j.out
+
+experiment_path='<EXPERIMENT_PATH>'
+
+cd ~
+cp -r inpole $TMPDIR
+cd $TMPDIR/inpole
+
+module purge
+source $HOME/inpole/scripts/slurm_templates/load_modules
+source $HOME/inpole/inpole_env/bin/activate
+
+echo "Done."

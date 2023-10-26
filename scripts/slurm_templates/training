@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+#SBATCH -A <ACCOUNT>
+#SBATCH -p alvis
+#SBATCH -N 1
+#SBATCH --gpus-per-node=<GPU>:1
+#SBATCH -t 5-0:0  # days-hours:minutes
+#SBATCH --output=<EXPERIMENT_PATH>/logs/%x_%A_%a.out
+
+experiment_path='<EXPERIMENT_PATH>'
+estimator='<ESTIMATOR>'
+
+if [ -z $SLURM_ARRAY_TASK_ID ]
+then
+  config_number='001'
+else
+  config_number=$(printf '%03d' $SLURM_ARRAY_TASK_ID)
+fi
+config=${experiment_path}/configs/${estimator}/config${config_number}.yaml
+
+cd ~
+cp -r inpole $TMPDIR
+cd $TMPDIR/inpole
+
+module purge
+source $HOME/inpole/scripts/slurm_templates/load_modules
+source $HOME/inpole/inpole_env/bin/activate
+
+python scripts/train_predict.py --config_path $config --estimator $estimator

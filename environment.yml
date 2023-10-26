@@ -1,0 +1,13 @@
+name: inpole_env
+
+channels:
+- pytorch
+- conda-forge
+- nodefaults
+
+dependencies:
+- python=3.10.4
+- mamba
+- pip
+- poetry=1.*
+- pytorch::pytorch=1.12.1
