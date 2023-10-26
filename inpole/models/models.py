@@ -1,32 +1,34 @@
 import copy
 import math
 import warnings
-import torch
+from functools import partial
+from contextlib import contextmanager
+
 import numpy as np
+
+import torch
 import torch.nn as nn
+from torch.nn.utils.rnn import PackedSequence
+
+import skorch
+import skorch.callbacks as cbs
+from skorch.utils import to_tensor
+from skorch.dataset import unpack_data, get_len
+
 import sklearn.linear_model as lm
 import sklearn.dummy as dummy
 import sklearn.tree as tree
 import sklearn.metrics as metrics
-import skorch.callbacks as cbs
-from torch.nn.utils.rnn import PackedSequence, unpack_sequence
-from skorch import NeuralNetClassifier
-from skorch.utils import to_tensor
-from skorch.dataset import unpack_data, get_len
-from .utils import plot_save_stats
-from ..utils import (
-    seed_torch,
-    create_decision_stump,
-    create_decision_tree,
-    compute_squared_distances
-)
-from functools import partial
-from contextlib import contextmanager
 from sklearn.base import BaseEstimator
 from sklearn.utils.validation import check_is_fitted
 
+from .utils import plot_save_stats
+from ..utils import seed_torch, compute_squared_distances
+from ..tree import create_decision_stump, create_decision_tree
+from ..metrics import ece, sce
 
-__ALL__ = [
+
+__all__ = [
     'SDTClassifer',
     'RDTClassifer',
     'LogisticRegression',
@@ -52,13 +54,18 @@ class EpochScoring(cbs.EpochScoring):
 
 
 class ClassifierMixin:
-    accepted_metrics = ['auc', 'accuracy']
+    accepted_metrics = {
+        'auc': {'lower_is_better': False},
+        'accuracy': {'lower_is_better': False},
+        'ece': {'lower_is_better': True},
+        'sce': {'lower_is_better': True}
+    }
 
     def score(self, X, y, metric='auc', **kwargs):
         if not metric in self.accepted_metrics:
             raise ValueError(
                 f"Got invalid metric {metric}. "
-                f"Valid metrics are {self.accepted_metrics}."
+                f"Valid metrics are {self.accepted_metrics.keys()}."
             )
         
         if y is None:
@@ -70,9 +77,8 @@ class ClassifierMixin:
         
         if metric == 'auc':
             yp = self.predict_proba(X)
-            if yp.shape[1] == 2:
-                yp = yp[:, 1]
-            if yp.ndim > 1 and not kwargs.pop('multi_class', False):
+            if yp.shape[1] == 2: yp = yp[:, 1]
+            if yp.ndim > 1 and not 'multi_class' in kwargs:
                 kwargs['multi_class'] = 'ovr'
             try:
                 return metrics.roc_auc_score(y, yp, **kwargs)
@@ -81,10 +87,19 @@ class ClassifierMixin:
         
         if metric == 'accuracy':
             yp = self.predict(X)
-            if kwargs.pop('average', False):
-                return float('nan')
-            else:
-                return metrics.accuracy_score(y, yp, **kwargs)
+            return metrics.accuracy_score(y, yp, **kwargs)
+
+        if metric == 'ece':
+            yp = self.predict_proba(X)
+            if yp.shape[1] == 2: yp = yp[:, 1]
+            return ece(y, yp)
+        
+        if metric == 'sce':
+            n_classes = len(self.classes_)
+            y = np.eye(n_classes)[y]
+            yp = self.predict_proba(X)
+            if yp.shape[1] == 2: yp = yp[:, 1]
+            return sce(y, yp)
     
     def compute_auc(self, net, X, y, **kwargs):
         return net.score(X, y, metric='auc', **kwargs)
@@ -92,46 +107,67 @@ class ClassifierMixin:
     def compute_accuracy(self, net, X, y, **kwargs):
         return net.score(X, y, metric='accuracy', **kwargs)
 
+    def compute_ece(self, net, X, y, **kwargs):
+        return net.score(X, y, metric='ece', **kwargs)
+    
+    def compute_sce(self, net, X, y, **kwargs):
+        return net.score(X, y, metric='sce', **kwargs)
 
-class BaseClassifier(ClassifierMixin, NeuralNetClassifier):
+
+class NeuralNetClassifier(ClassifierMixin, skorch.NeuralNetClassifier):
     file_name_prefix_ = ''
 
     def __init__(
         self,
         results_path,
-        *args,
+        *,
         epoch_scoring='auc',
-        monitor='loss',
+        monitor='auc',
+        early_stopping=True,
         seed=2023,
         **kwargs
     ):
-        super(BaseClassifier, self).__init__(*args, **kwargs)
+        super(NeuralNetClassifier, self).__init__(**kwargs)
 
         self.results_path = results_path
         self.epoch_scoring = epoch_scoring
         self.monitor = monitor
+        self.early_stopping = early_stopping
         self.seed = seed
 
         self._validate_parameters()
 
-        self._add_epoch_scoring_to_callbacks()
+        if epoch_scoring is not None:
+            self._add_epoch_scoring_to_callbacks()
         
         if monitor is not None:
             self._add_checkpoint_to_callbacks()
+
+        if early_stopping:
+            self._add_early_stopping_to_callbacks()
         
-        seed_torch(seed)
+        if seed is not None:
+            seed_torch(seed)
     
     def _validate_parameters(self):
-        if not self.epoch_scoring in self.accepted_metrics:
+        epoch_scorings = [None] + list(self.accepted_metrics)
+        if not self.epoch_scoring in epoch_scorings:
             raise ValueError(
-                f"Expected epoch_scoring to be in {self.accepted_metrics}. "
+                f"Expected epoch_scoring to be in {epoch_scorings}. "
                 f"Got {self.epoch_scoring}."
             )
         
-        if not self.monitor in [None, 'loss', self.epoch_scoring]:
+        monitors = set([None, 'loss', self.epoch_scoring])
+        if not self.monitor in monitors:
             raise ValueError(
-                "Expected monitor to be either `None`, 'loss' or "
-                f"{self.epoch_scoring}. Got {self.monitor}."
+                f"Expected monitor to be in {monitors} "
+                f"Got {self.monitor}."
+            )
+        
+        if self.early_stopping and self.monitor is None:
+            raise ValueError(
+                "To enable early stopping, `monitor` must "
+                "not be `None`."
             )
     
     @property
@@ -149,9 +185,10 @@ class BaseClassifier(ClassifierMixin, NeuralNetClassifier):
 
     def _add_epoch_scoring_to_callbacks(self):
         scoring = getattr(self, f'compute_{self.epoch_scoring}')
+        lower_is_better = self.accepted_metrics[self.epoch_scoring]['lower_is_better']
         kwargs = {
             'scoring': scoring,
-            'lower_is_better': False,
+            'lower_is_better': lower_is_better,
             'use_caching': True
         }
         train = f'train_{self.epoch_scoring}'
@@ -184,8 +221,20 @@ class BaseClassifier(ClassifierMixin, NeuralNetClassifier):
             self.callbacks = [callback]
         else:
             self.callbacks.append(callback)
+        
+    def _add_early_stopping_to_callbacks(self):
+        monitor = f'valid_{self.monitor}'
+        lower_is_better = True if 'loss' in monitor else \
+            self.accepted_metrics[self.monitor]['lower_is_better']
+        callback = cbs.EarlyStopping(
+            monitor=monitor,
+            lower_is_better=lower_is_better,
+            patience=5
+        )
+        callback = ('early_stopping', callback)
+        self.callbacks.append(callback)
     
-    def get_split_datasets(self, X, y=None, X_valid=None, y_valid=None, **fit_params):
+    def get_split_datasets(self, X, y, X_valid=None, y_valid=None, **fit_params):
         if X_valid is not None:
             dataset_train = self.get_dataset(X, y)
             dataset_valid = self.get_dataset(X_valid, y_valid)
@@ -216,14 +265,14 @@ class BaseClassifier(ClassifierMixin, NeuralNetClassifier):
         self.history.record(prefix + '_batch_count', batch_count)
 
     def on_epoch_begin(self, net, dataset_train=None, dataset_valid=None, **kwargs):
-        super(BaseClassifier, self).on_epoch_begin(
+        super(NeuralNetClassifier, self).on_epoch_begin(
             net, dataset_train, dataset_valid, **kwargs
         )
         if len(self.history) == 1:
             self.history.record('classes_', self.classes_.tolist())
     
     def on_train_end(self, net, X=None, y=None, **kwargs):
-        super(BaseClassifier, self).on_train_end(net, X, y, **kwargs)
+        super(NeuralNetClassifier, self).on_train_end(net, X, y, **kwargs)
 
         losses = ['train_loss', 'valid_loss']
         name = self.file_name_prefix_ + 'losses'
@@ -249,17 +298,17 @@ class BaseClassifier(ClassifierMixin, NeuralNetClassifier):
             self.file_name_prefix_ = ''
 
 
-class SDTClassifer(BaseClassifier):
+class SDTClassifer(NeuralNetClassifier):
     def __init__(
         self,
-        *args,
+        *,
         initial_depth=2,
         max_depth=5,
         grow_incrementally=True,
         lambda_=0.001,
         **kwargs
     ):
-        super().__init__(*args, **kwargs)
+        super().__init__(**kwargs)
 
         if self.warm_start:
             warnings.warn(
@@ -317,7 +366,8 @@ class SDTClassifer(BaseClassifier):
                         index = previous_tree.inner_node_index(node.parent)
                         std = math.sqrt(1 / (node.layer_index+1))
                         _new_param = previous_param[index].detach().clone()
-                        _new_param += torch.normal(0.0, std, size=_new_param.size())
+                        noise = torch.normal(0.0, std, size=_new_param.size())
+                        _new_param += noise.to(_new_param.device)
                     new_param.append(_new_param)
                 new_param = torch.stack(new_param, dim=0)
             else:
@@ -351,7 +401,7 @@ class SDTClassifer(BaseClassifier):
         print("Leaf node indices:", self.tree_.leaf_nodes.keys())
         print('\n\n\n')
     
-    def fit(self, X, y=None, **fit_params):
+    def fit(self, X, y, **fit_params):
         if not self.grow_incrementally:
             self.tree_ = create_decision_tree(self.max_depth)
             return super().fit(X, y, **fit_params)
@@ -376,6 +426,8 @@ class SDTClassifer(BaseClassifier):
         checkpoint = dict(self.callbacks_).get('checkpoint')
         assert checkpoint.load_best
         scoring = checkpoint.monitor.replace('_best', '')
+        lower_is_better = True if 'loss' in self.monitor else \
+            self.accepted_metrics[self.monitor]['lower_is_better']
         best_valid_score = self.history[-1][scoring]
 
         iteration = 1
@@ -417,7 +469,7 @@ class SDTClassifer(BaseClassifier):
             previous_params = dict(self.get_all_learnable_params())
 
             valid_score = self.history[-1][scoring]
-            improved = valid_score < best_valid_score if ('loss' in checkpoint.monitor) else \
+            improved = valid_score < best_valid_score if lower_is_better else \
                 valid_score > best_valid_score
             if improved:
                 best_valid_score = valid_score
@@ -474,7 +526,7 @@ class SDTClassifer(BaseClassifier):
         
         self.module_._perform_node_pruning(eliminate_node)
     
-    def save_tree(self, features, classes, dataset=None, suffix=''):
+    def save_tree(self, features, dataset=None, suffix=''):
         if dataset is not None:
             # @TODO: Visualize patient trajectories.
             iterator = self.get_iterator(dataset, training=False)
@@ -486,19 +538,20 @@ class SDTClassifer(BaseClassifier):
             )
         else:
             args = ()
-        graph = self.module_._draw_tree(features, classes, *args)
+        # @TODO: Take labels as argument.
+        graph = self.module_._draw_tree(features, self.classes_, *args)
         graph.render('tree%s' % suffix, self.results_path, view=False, format='png')
 
 
 class RDTClassifer(SDTClassifer):
     def __init__(
         self,
-        *args,
+        *,
         delta1=0.001,
         delta2=0.001,
         **kwargs
     ):
-        super(RDTClassifer, self).__init__(*args, **kwargs)
+        super(RDTClassifer, self).__init__(**kwargs)
 
         self.delta1 = delta1
         self.delta2 = delta2
@@ -638,7 +691,7 @@ class DummyClassifier(ClassifierMixin, dummy.DummyClassifier):
         )
 
 
-class PrototypeClassifier(BaseClassifier):
+class PrototypeClassifier(NeuralNetClassifier):
     loss_terms = [
         'ce_loss',
         'div_loss',
@@ -647,7 +700,8 @@ class PrototypeClassifier(BaseClassifier):
     ]
 
     def __init__(
-        self, 
+        self,
+        *,
         d_min=1,
         lambda_div=1e-3,
         lambda_ev=1e-3,
@@ -672,38 +726,17 @@ class PrototypeClassifier(BaseClassifier):
             'prototypes'
         ]
 
-    def _project_prototypes(self, iterator):
-        inputs, similarities, encodings = [], [], []
-        
-        for batch in iterator:
-            self._set_training(False)
-            Xi, _ = unpack_data(batch)
-            with torch.no_grad():
-                _, _similarities, _encodings = self.infer(Xi)
-            if isinstance(Xi, PackedSequence):
-                Xi = unpack_sequence(Xi)
-                Xi = torch.cat(Xi)
-            inputs += [Xi]
-            similarities += [_similarities]
-            encodings += [_encodings]
-        
-        inputs = torch.cat(inputs)
-        similarities = torch.cat(similarities)
-        encodings = torch.cat(encodings)
-        
+    def _project_prototypes(self, X):
+        # Avoid shuffling the dataset by setting `training=False`.
+        _, similarities, encodings = self.forward(X, training=False)
         _, max_indices = torch.max(similarities, dim=0)
         projections = encodings[max_indices]
-        input_prototypes = inputs[max_indices]
-        
-        return projections, input_prototypes, max_indices
+        return projections, max_indices
 
     def _project_and_record_prototypes(self, dataset_train):
         assert hasattr(self.module_, 'prototype_layer')
-        iterator_train = self.get_iterator(dataset_train, training=True)
-        projections, input_prototypes, max_indices = \
-            self._project_prototypes(iterator_train)
+        projections, max_indices = self._project_prototypes(dataset_train)
         self.history.record('prototype_indices', max_indices.cpu().tolist())
-        self.history.record('prototypes', input_prototypes.cpu().tolist())
         self.module_.set_prototypes(projections)
     
     def validation_step(self, batch, **fit_params):
@@ -784,9 +817,10 @@ class PrototypeClassifier(BaseClassifier):
         # because it is called before any callback that possibly
         # loads the best model.
         if not 'prototypes' in self.history[-1]:
-            dataset_train, _ = self.get_split_datasets(
-                X, y, **fit_params
-            )
+            # If `self.train_split = None`, we can directly pass `X`
+            # to `self._project_and_record_prototypes`, but it does
+            # not hurt to extract the training dataset.
+            dataset_train, _ = self.get_split_datasets(X, y, **fit_params)
             self._project_and_record_prototypes(dataset_train)
 
         return self
@@ -839,8 +873,9 @@ class SwitchPropensityEstimator(ClassifierMixin, BaseEstimator):
         
         fit_params_s, fit_params_t = {}, {}
         if X_valid is not None and y_valid is not None:
-            Xs_valid, ys_valid, Xt_valid, yt_valid = \
-                self._split_data(X_valid, y_valid, prev_therapy_index)
+            Xs_valid, ys_valid, Xt_valid, yt_valid = self._split_data(
+                X_valid, y_valid, prev_therapy_index
+            )
             fit_params_s['X_valid'] = Xs_valid
             fit_params_s['y_valid'] = ys_valid
             fit_params_t['X_valid'] = Xt_valid
@@ -859,7 +894,7 @@ class SwitchPropensityEstimator(ClassifierMixin, BaseEstimator):
         assert np.array_equal(np.unique(y), np.arange(n_classes))
         assert len(np.unique(y)) == n_classes
 
-        # Check input `X`.
+        # Check inputs `X`.
         assert isinstance(X, np.ndarray)
 
         # Check labels `y`.
@@ -883,6 +918,8 @@ class SwitchPropensityEstimator(ClassifierMixin, BaseEstimator):
         y_prev = X[:, self.prev_therapy_index_].astype(np.float32)
         
         # Remove probability of the previous treatment and renormalize.
+        #
+        # @TODO: Should we perhaps use a prior instead of equal probabilities below?
         y_tp = (1-y_prev) * y_tp
         mask = y_tp.sum(axis=1) == 0
         y_tp[mask] = 1 - y_prev[mask]  # Assign equal probability to all treatments except the previous one

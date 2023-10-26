@@ -1,34 +1,20 @@
 import torch
-import skorch
-import pandas as pd
-import numpy as np
 from torch.utils.data import Dataset
 from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence
+
+import pandas as pd
+import numpy as np
+
+import skorch
 from skorch.dataset import get_len
 from skorch.utils import to_numpy
-from amhelpers.amhelpers import get_class_from_str
 
 
-def get_data_splits_from_config(config):
-    data_handler = get_class_from_str(config['data']['handler'])
-    return data_handler.get_splits(
-        config['data']['path'],
-        config['data']['valid_size'],
-        config['data']['test_size'],
-        config['data']['seed']
-    )
-
-
-def get_classes_from_config(config):
-    data_handler = get_class_from_str(config['data']['handler'])
-    le = data_handler.get_splits(
-        config['data']['path'],
-        config['data']['valid_size'],
-        config['data']['test_size'],
-        config['data']['seed'],
-        return_label_encoder=True
-    )[-1]
-    return le.classes_
+__all__ = [
+    'pad_pack_sequences',
+    'StandardDataset',
+    'SequentialDataset'
+]
 
 
 def pad_pack_sequences(batch):

@@ -1,19 +1,19 @@
-import torch
 import math
+
+import torch
 import torch.nn as nn
-import numpy as np
 import torch.nn.functional as F
 from torch.nn.utils.rnn import PackedSequence, unpack_sequence
-from ..utils import (
-    get_node_indices_per_layer,
-    draw_tree,
-    compute_squared_distances
-)
+
+import numpy as np
 from scipy.special import softmax
 from skorch.utils import params_for
 
+from ..utils import compute_squared_distances
+from ..tree import get_node_indices_per_layer, draw_tree
 
-__ALL__ = [
+
+__all__ = [
     'SDT',
     'RDT',
     'NNEncoder',
@@ -219,7 +219,7 @@ class SDT(nn.Module):
             mu = mu * _path_probas
 
             _all_path_probas = mu.detach().clone()
-            mask = torch.zeros(num_nodes_in_full_layer, dtype=torch.bool)
+            mask = torch.zeros(num_nodes_in_full_layer, dtype=torch.bool, device=mu.device)
             mask[layer_aligned_node_indices] = True
             _all_path_probas[:, ~mask, :] = np.nan
             _all_path_probas = _all_path_probas.view(batch_size, -1)
