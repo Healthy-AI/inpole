@@ -12,31 +12,61 @@ $ conda activate inpole_env
 $ poetry install
 ```
 
+## Models
+
+The following models are currently supported:
+- soft decision tree (sdt)
+- recurrent decision tree (rdt)
+- feedforward prototype network (pronet)
+- recurrent prototype network (prosenet)
+- logistic regression (lr)
+- hard decision tree (dt).
+
+All models are defined in [`inpole/models/models.py`](inpole/models/models.py) and their hyperparameters are specified in [`inpole/models/hparam_registry.py`](inpole/models/hparam_registry.py). Each model is also given an alias (in brackets above) and listed in [`inpole/__init__.py`](inpole/__init__.py).
+
+Each model should inherit from `inpole.models.ClassifierMixin` to enable evalutation with respect to different metrics (accuracy, AUC, ECE, SCE). Furthermore, each model must implement the functions `fit`, `predict_proba` and `predict` as shown in the example below:
+
+```python
+from inpole.models.models import ClassifierMixin
+
+class MyModel(ClassifierMixin):
+    def fit(self, X, y, **fit_params):
+        ...
+    
+    def predict_proba(self, X, y):
+        ...
+    
+    def predict(self, X, y):
+        ...
+```
+
 ## Datasets
 
-- Rheumatoid arthritis (RA)
-- ...
+The following datasets are currently supported:
+- Rheumatoid arthritis (ra).
+
+All datasets are defined in [`inpole/data/data.py`](inpole/data/data.py). Data-dependent hyperparameters are specified in [`inpole/models/hparam_registry.py`](inpole/models/hparam_registry.py). Each dataset is also given an alias (in brackets above) and listed in [`inpole/__init__.py`](inpole/__init__.py).
 
 ## Train and evaluate a single model
 
-Training and evaluating of a single model is handled via the script `scripts/train_predict.py`. Type `python scripts/train_predict.py -h` for details.
+Training and evaluating of a single model is handled via the script [`scripts/train_predict.py`](scripts/train_predict.py). Type `python scripts/train_predict.py -h` for details.
 
-For example, to train a soft decicion tree (SDT) on the RA data, type:
+Example:
 ```bash
-$ python scripts/train_predict.py --config_path configs/ra.yaml --estimator sdt --new_out_dir
+$ python scripts/train_predict.py --config_path configs/example_config.yaml --estimator sdt --new_out_dir
 ```
 
 ## Launching a sweep
 
-A parameter sweep can be performed via the script `scripts/run_experiment.py`. Type `python scripts/run_experiment.py -h` for details.
+A parameter sweep can be performed via the script [`scripts/run_experiment.py`](scripts/run_experiment.py). Type `python scripts/run_experiment.py -h` for details.
 
-For example, to sweep over soft decision trees (SDTs) on the RA data, type:
+Example:
 ```bash
 $ python scripts/run_experiment.py \
-> --config_path configs/ra.yaml \
-> --estimators SDT
+> --config_path configs/example_config.yaml \
+> --estimators sdt \
 > --account <ACCOUNT> \
-> --gpu A40
+> --gpu <GPU>
 ```
 
 ## Alvis usage
@@ -52,7 +82,7 @@ $ virtualenv --system-site-packages inpole_env
 $ source inpole_env/bin/activate
 $ pip install --no-cache-dir --no-build-isolation \
 > gitpython==3.1.32 skorch==0.13.0 amhelpers==0.4.3 \
-> conda-lock==2.0.0 graphviz==0.20.1
+> conda-lock==2.0.0 graphviz==0.20.1 colorcet==3.0.1
 $ pip install --no-cache-dir --no-build-isolation --no-deps -e .
 ```
 
