@@ -57,7 +57,7 @@ def _hparams(estimator_name, experiment, seed):
         _hparam('batch_size', 32, lambda r: r.choice([32, 64]))
     
     if experiment == 'ra' and estimator_name in ['sdt', 'rdt']:
-        _hparam('max_depth', 3, lambda r: r.choice([3, 4, 5, 6, 7]))
+        _hparam('max_depth', 3, lambda r: r.choice([3, 4, 5]))
     
     if experiment == 'ra' and estimator_name == 'rdt':
         _hparam('module__hidden_dim', 10, lambda r: r.choice([5, 10, 15, 20]))
