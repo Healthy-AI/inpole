@@ -2,6 +2,8 @@
 Data handler for each experiment.
 """
 
+import re
+from functools import partial
 from abc import ABC, abstractmethod
 
 import numpy as np
@@ -138,6 +140,10 @@ class RAData(Data):
     TREATMENT = 'therapy'
     GROUP = 'id'
 
+    def __init__(self, *, shift=None, **kwargs):
+        super().__init__(**kwargs)
+        self.shift = shift
+
     def get_column_transformer(self):
         # Numerical columns
         numerical_column_selector = make_column_selector(dtype_include='float64')
@@ -184,9 +190,30 @@ class RAData(Data):
     def load(self):
         data = pd.read_pickle(self.path)
 
+        # Drop all columns with shifted values.
+        match = partial(re.match, r'(.+)_([0-9]+)')
+        c_shifted = [
+            c for c in data.columns
+            if match(c) and match(c).group(1) in data.columns
+        ]
+        shifted = data[c_shifted]
+        data.drop(columns=c_shifted, inplace=True)
+
+        if self.shift is not None:
+            # Include the shifted columns that were specified in the
+            # configuration file.
+            shifted_variables = [match(c).group(1) for c in c_shifted]
+            for v in self.shift:
+                if not v in shifted_variables:
+                    raise ValueError(f"Column '{v}' is not shifted in the data.")
+            shifted = shifted[
+                [c for c in c_shifted if match(c).group(1) in self.shift]
+            ]
+            data = pd.concat([data, shifted], axis=1)
+
         if self.sample_size is not None:
-            np.random.seed(self.seed)
-            sampled_groups = np.random.choice(
+            r = np.random.RandomState(self.seed)
+            sampled_groups = r.choice(
                 data[self.GROUP], size=self.sample_size, replace=False
             )
             data = data.loc[data[self.GROUP].isin(sampled_groups)]
