@@ -19,7 +19,7 @@ from sklearn.preprocessing import (
     LabelEncoder
 )
 from sklearn.compose import (
-    #make_column_transformer,
+    make_column_transformer,
     make_column_selector,
     ColumnTransformer
 )
@@ -29,10 +29,12 @@ from sklearn.impute import SimpleImputer
 from . import hparam_registry
 
 
+# Include new datasets here.
 __all__ = [
     'get_data_handler_class',
     'get_data_handler_from_config',
-    'RAData'
+    'RAData',
+    'ADNIData'
 ]
 
 
@@ -219,6 +221,39 @@ class RAData(Data):
             data = data.loc[data[self.GROUP].isin(sampled_groups)]
 
         X = data.drop(columns=[self.TREATMENT, self.GROUP])
+        y = data[self.TREATMENT]
+        groups = data[self.GROUP]
+
+        return X, y, groups
+
+
+class ADNIData(Data):
+    FEATURES = [
+        'CDRSB_cat',
+        'MRI_previous_outcome'
+    ]
+    TREATMENT = 'MRI_ordered'
+    GROUP = 'RID'
+
+    def get_column_transformer(self):
+        return make_column_transformer(
+            (OneHotEncoder(handle_unknown='error', sparse=False), self.FEATURES),
+            remainder='passthrough'  # Passthrough the group column
+        )
+
+    def get_feature_selector(self):
+        return None
+    
+    def get_preprocessing_steps(self):
+        return (
+            ('column_transformer', self.get_column_transformer()),
+            ('feature_selector', self.get_feature_selector())
+        )
+    
+    def load(self):
+        data = pd.read_csv(self.path)
+
+        X = data[self.FEATURES]
         y = data[self.TREATMENT]
         groups = data[self.GROUP]
 
