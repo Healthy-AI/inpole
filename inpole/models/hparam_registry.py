@@ -2,6 +2,15 @@ import numpy as np
 from . import NNEncoder, RNNEncoder
 
 from ..utils import seed_hash
+from .. import OTHER_ESTIMATORS
+
+
+# @TODO: Add hyperparameters for the following estimators and datasets:
+# - rulefit
+# - riskslim
+# - fasterrisk
+# - adni.
+
 
 def _hparams(estimator_name, experiment, seed):
     hparams = {}
@@ -51,7 +60,7 @@ def _hparams(estimator_name, experiment, seed):
     # Experiment-DEPENDENT parameters.
     # =========================================================================
 
-    if experiment == 'ra' and not estimator_name in ['lr', 'dt', 'dummy']:
+    if experiment == 'ra' and estimator_name not in OTHER_ESTIMATORS:
         _hparam('lr', 1.0e-3, lambda r: 10. ** r.choice([-3, -2]))
         _hparam('max_epochs', 50, lambda r: 50)
         _hparam('batch_size', 32, lambda r: r.choice([32, 64]))

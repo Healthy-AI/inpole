@@ -1,10 +1,16 @@
+import os
 import copy
 import math
 import warnings
 from functools import partial
 from contextlib import contextmanager
 
+import rulefit
+import riskslim
 import numpy as np
+import pandas as pd
+from scipy.special import expit
+from fasterrisk.fasterrisk import RiskScoreOptimizer, RiskScoreClassifier
 
 import torch
 import torch.nn as nn
@@ -26,8 +32,14 @@ from .utils import plot_save_stats
 from ..utils import seed_torch, compute_squared_distances
 from ..tree import create_decision_stump, create_decision_tree
 from ..metrics import ece, sce
+from .modules import PrototypeNetwork, NNEncoder, RNNEncoder
 
 
+# @TODO: Divide into abstract base classes and public classes. All classifiers
+# should have an attribute `alias`.
+
+
+# Include new classifers here.
 __all__ = [
     'SDTClassifer',
     'RDTClassifer',
@@ -35,7 +47,12 @@ __all__ = [
     'DecisionTreeClassifier',
     'DummyClassifier',
     'PrototypeClassifier',
-    'SwitchPropensityEstimator'
+    'SwitchPropensityEstimator',
+    'RuleFitClassifier',
+    'RiskSlimClassifier',
+    'FasterRiskClassifier',
+    'MLPClassifier',
+    'RNNClassifier'
 ]
 
 
@@ -96,10 +113,13 @@ class ClassifierMixin:
         
         if metric == 'sce':
             n_classes = len(self.classes_)
-            y = np.eye(n_classes)[y]
-            yp = self.predict_proba(X)
-            if yp.shape[1] == 2: yp = yp[:, 1]
-            return sce(y, yp)
+            if n_classes == 2:
+                # SCE is not defined for binary classification.
+                return float('nan')
+            else:
+                y = np.eye(n_classes)[y]
+                yp = self.predict_proba(X)
+                return sce(y, yp)
     
     def compute_auc(self, net, X, y, **kwargs):
         return net.score(X, y, metric='auc', **kwargs)
@@ -409,9 +429,7 @@ class SDTClassifer(NeuralNetClassifier):
         self.tree_ = create_decision_tree(depth=self.initial_depth)
 
         # Perform initial optimization.
-        self.set_params(
-            callbacks__checkpoint__fn_prefix=f'initial_best_'
-        )
+        self.set_params(callbacks__checkpoint__fn_prefix=f'initial_best_')
         
         self.initialize()
         with self._current_prefix('initial_'):
@@ -439,7 +457,6 @@ class SDTClassifer(NeuralNetClassifier):
 
             suboptimal_leaf = self.tree_.suboptimal_leaves.pop()
             if suboptimal_leaf.layer_index == self.max_depth:
-                #assert all([node.layer_index >= self.max_depth for node in self.tree_.suboptimal_leaves])
                 break
 
             # Store the parameters of the suboptimal leaf in case
@@ -458,7 +475,9 @@ class SDTClassifer(NeuralNetClassifier):
             nodes_to_optimize += suboptimal_leaf.children
 
             self.initialize()
-            self._set_weights(previous_tree, previous_params, nodes_to_optimize=nodes_to_optimize)
+            self._set_weights(
+                previous_tree, previous_params, nodes_to_optimize=nodes_to_optimize
+            )
             with self._current_prefix(f'{iteration:02d}_'):
                 self.partial_fit(X, y, **fit_params)
 
@@ -479,9 +498,7 @@ class SDTClassifer(NeuralNetClassifier):
             iteration += 1
         
         # Perform global optimization.
-        self.set_params(
-            callbacks__checkpoint__fn_prefix=f'final_best_'
-        )
+        self.set_params(callbacks__checkpoint__fn_prefix=f'final_best_')
 
         self.initialize()
         self._set_weights(previous_tree, previous_params)
@@ -526,7 +543,7 @@ class SDTClassifer(NeuralNetClassifier):
         
         self.module_._perform_node_pruning(eliminate_node)
     
-    def save_tree(self, features, dataset=None, suffix=''):
+    def save_tree(self, features, labels, dataset=None, suffix=''):
         if dataset is not None:
             # @TODO: Visualize patient trajectories.
             iterator = self.get_iterator(dataset, training=False)
@@ -538,8 +555,7 @@ class SDTClassifer(NeuralNetClassifier):
             )
         else:
             args = ()
-        # @TODO: Take labels as argument.
-        graph = self.module_._draw_tree(features, self.classes_, *args)
+        graph = self.module_._draw_tree(features, labels, *args)
         graph.render('tree%s' % suffix, self.results_path, view=False, format='png')
 
 
@@ -816,7 +832,10 @@ class PrototypeClassifier(NeuralNetClassifier):
         # Note that we cannot perform this step in `self.on_train_end`
         # because it is called before any callback that possibly
         # loads the best model.
-        if not 'prototypes' in self.history[-1]:
+        if (
+            self.projection_interval > 0 and
+            not 'prototypes' in self.history[-1]
+        ):
             # If `self.train_split = None`, we can directly pass `X`
             # to `self._project_and_record_prototypes`, but it does
             # not hurt to extract the training dataset.
@@ -831,6 +850,26 @@ class PrototypeClassifier(NeuralNetClassifier):
             loss_terms = [f'{mode}_{loss_term}' for loss_term in self.loss_terms]
             name = self.file_name_prefix_ + mode + '_penalties'
             plot_save_stats(self.history, loss_terms, self.results_path, name)
+
+
+class MLPClassifier(NeuralNetClassifier):
+    def __init__(self, **kwargs):
+        super().__init__(
+            module=PrototypeNetwork,
+            module__encoder=NNEncoder,
+            module__num_prototypes=-1,
+            **kwargs
+        )
+
+
+class RNNClassifier(NeuralNetClassifier):
+    def __init__(self, **kwargs):
+        super().__init__(
+            module=PrototypeNetwork,
+            module__encoder=RNNEncoder,
+            module__num_prototypes=-1,
+            **kwargs
+        )
 
 
 class SwitchPropensityEstimator(ClassifierMixin, BaseEstimator):
@@ -936,3 +975,200 @@ class SwitchPropensityEstimator(ClassifierMixin, BaseEstimator):
     def predict(self, X):
         yp = self.predict_proba(X)
         return np.argmax(yp, axis=1)
+
+
+class RuleFitClassifier(ClassifierMixin, rulefit.RuleFit):
+    def __init__(
+        self,
+        tree_size=4,
+        sample_fract='default',
+        max_rules=2000,
+        memory_par=0.01,
+        tree_generator=None,
+        rfmode='classify',
+        lin_trim_quantile=0.025,
+        lin_standardise=True,
+        exp_rand_tree_size=True,
+        model_type='rl',
+        Cs=None,
+        cv=3,
+        tol=0.0001,
+        max_iter=100,
+        n_jobs=None,
+        random_state=None
+    ):
+        super().__init__(
+            tree_size=tree_size,
+            sample_fract=sample_fract,
+            max_rules=max_rules,
+            memory_par=memory_par,
+            tree_generator=tree_generator,
+            rfmode=rfmode,
+            lin_trim_quantile=lin_trim_quantile,
+            lin_standardise=lin_standardise,
+            exp_rand_tree_size=exp_rand_tree_size,
+            model_type=model_type,
+            Cs=Cs,
+            cv=cv,
+            tol=tol,
+            max_iter=max_iter,
+            n_jobs=n_jobs,
+            random_state=random_state
+        )
+
+    def fit(self, X, y, feature_names=None, **kwargs):
+        super().fit(X, y, feature_names, **kwargs)
+        self.classes_ = np.unique(y)
+        return self
+
+
+class RiskSlimClassifier(ClassifierMixin):
+    def __init__(
+        self,
+        max_coefficient=5,
+        max_L0_value=5,
+        max_offset=50,
+        c0_value=1e-6,
+        w_pos=1.00,
+        random_state=None
+    ):
+        self.max_coefficient = max_coefficient
+        self.max_L0_value = max_L0_value
+        self.max_offset = max_offset
+        
+        self.c0_value = c0_value
+        self.w_pos = w_pos
+        self.random_state = random_state
+
+        self.settings = {
+            'c0_value': c0_value,
+            'w_pos': w_pos,
+            # =================================================================
+            # LCPA settings.
+            # =================================================================
+            'max_runtime': 30.0,
+            'max_tolerance': np.finfo('float').eps,
+            'display_cplex_progress': True,
+            'loss_computation': 'fast',
+            # =================================================================
+            # LCPA improvements.
+            # =================================================================
+            'round_flag': True,
+            'polish_flag': True,
+            'chained_updates_flag': True,
+            'add_cuts_at_heuristic_solutions': True,
+            # =================================================================
+            # Initialization.
+            # =================================================================
+            'initialization_flag': True,
+            'init_max_runtime': 120.0,
+            'init_max_coefficient_gap': 0.49,
+            # =================================================================
+            # CPLEX solver.
+            # =================================================================
+            'cplex_randomseed': random_state,
+            'cplex_mipemphasis': 0
+        }
+    
+    def _prepare_data(self, X, y, feature_names, outcome_name):
+        X = pd.DataFrame(X, columns=feature_names)
+        y = pd.Series(y, name=outcome_name)
+        data = pd.concat([y, X], axis=1)
+
+        # Save data to CSV file.
+        data_path = os.path.join(
+            os.environ['TMPDIR'], 'data.csv'
+        )
+        data.to_csv(data_path, index=False)
+        return data_path
+
+    def fit(self, X, y, **kwargs):
+        data_path = self._prepare_data(X, y, **kwargs)
+        data = riskslim.load_data_from_csv(dataset_csv_file=data_path)
+        
+        cofficient_set = riskslim.CoefficientSet(
+            variable_names=data['variable_names'],
+            lb=-self.max_coefficient,
+            ub=self.max_coefficient,
+            sign=0
+        )
+        cofficient_set.update_intercept_bounds(
+            X=data['X'],
+            y=data['Y'],
+            max_offset=self.max_offset
+        )
+        
+        constraints = {
+            'L0_min': 0,
+            'L0_max': self.max_L0_value,
+            'coef_set': cofficient_set
+        }
+        model_info, _mip_info, _lcpa_info = riskslim.run_lattice_cpa(
+            data, constraints, self.settings
+        )
+        
+        self.intercept_ = model_info['solution'][0]
+        self.coef_ = model_info['solution'][1:]
+        self.classes_ = np.unique(y)
+    
+    def decision_function(self, X):
+        return self.intercept_ + np.dot(X, self.coef_)
+
+    def predict_proba(self, X):
+        probas = self.decision_function(X)
+        expit(probas, out=probas)
+        return np.vstack([1 - probas, probas]).T
+    
+    def predict(self, X):
+        probas = self.predict_proba(X)
+        return np.argmax(probas, axis=1)
+
+
+class FasterRiskClassifier(ClassifierMixin):
+    def __init__(
+        self,
+        sparsity=5,
+        lb=-5,
+        ub=5,
+        parent_size=10,
+        random_state=None  # For compatibility, currently unused
+    ):
+        self.sparsity = sparsity
+        self.lb = lb
+        self.ub = ub
+        self.parent_size = parent_size
+    
+    def _check_y(self, y):
+        if set(y) == {0, 1}:
+            y[y==0] = -1
+        # We do not perform any other checks here because `y` will be checked 
+        # in `RiskScoreOptimizer`.
+        return y
+    
+    def fit(self, X, y, feature_names):
+        y = self._check_y(y)
+        m = RiskScoreOptimizer(
+            X=X,
+            y=y,
+            k=self.sparsity,
+            lb=self.lb,
+            ub=self.ub,
+            parent_size=self.parent_size
+        )
+        m.optimize()
+        
+        multiplier, intercept, coefficients = m.get_models(model_index=0)
+        self.clf_ = RiskScoreClassifier(
+            multiplier=multiplier,
+            intercept=intercept,
+            coefficients=coefficients,
+            featureNames=feature_names
+        )
+        self.classes_ = np.unique(y)
+
+    def predict_proba(self, X):
+        probas = self.clf_.predict_prob(X)
+        return np.vstack([1 - probas, probas]).T
+    
+    def predict(self, X):
+        return self.clf_.predict(X)

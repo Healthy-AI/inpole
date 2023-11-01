@@ -40,13 +40,7 @@ if __name__ == '__main__':
     
     # Evaluate model.
     subsets = ['valid', 'test']
-    metrics = [
-        ('accuracy', {}),
-        ('auc', {'average': 'macro'}),
-        ('auc', {'average': None}),
-        ('ece', {}),
-        ('sce', {})
-    ]
+    metrics = config['metrics']
     for subset in subsets:
         predict(config, pipeline, args.estimator, subset,
                 metrics=metrics)
@@ -55,7 +49,6 @@ if __name__ == '__main__':
         for subset in subsets:
             predict(config, pipeline, args.estimator, subset,
                     metrics=metrics, switches_only=True)
-        
     
     """if args.estimator == 'sdt' or args.estimator =='rdt':
         preprocessor, estimator = pipeline.named_steps.values()
@@ -63,17 +56,19 @@ if __name__ == '__main__':
         categories = preprocessor.get_feature_names_out()
         categories = [s.split('__')[1] for s in categories]
 
-        estimator.align_axes()
-        estimator.save_tree(categories, suffix='_before_pruning')
-
         data_handler = get_data_handler_from_config(config)
+        labels = data_handler.get_labels()
+
+        estimator.align_axes()
+        estimator.save_tree(categories, labels, suffix='_before_pruning')
+
         X_valid, y_valid = data_handler.get_splits()[1]
         X_valid = preprocessor.transform(X_valid)
         y_valid = estimator.label_encoder_.transform(y_valid)
         dataset_valid = estimator.get_dataset(X_valid, y_valid)
 
         estimator.prune_tree(dataset_valid)
-        estimator.save_tree(categories, suffix='_after_pruning')
+        estimator.save_tree(categories, labels, suffix='_after_pruning')
 
         for subset in subsets:
             predict(config, pipeline, f'{args.estimator}_postprocessed',

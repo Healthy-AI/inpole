@@ -3,7 +3,8 @@ from .data import *
 
 # Each experiment maps to a dataset.
 EXPERIMENTS = {
-    'ra': RAData
+    'ra': RAData,
+    'adni': ADNIData
 }
 
 NET_ESTIMATORS = {
@@ -19,7 +20,10 @@ RECURRENT_NET_ESTIMATORS = {
 OTHER_ESTIMATORS = {
     'lr': LogisticRegression,
     'dt': DecisionTreeClassifier,
-    'dummy': DummyClassifier
+    'dummy': DummyClassifier,
+    'rulefit': RuleFitClassifier,
+    'riskslim': RiskSlimClassifier,
+    'fasterrisk': FasterRiskClassifier
 }
 
 NET_MODULES = {

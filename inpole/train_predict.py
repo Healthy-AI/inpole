@@ -2,10 +2,13 @@ from os.path import join
 
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import LabelEncoder
 
 from .models.utils import expects_groups
-from .models import SwitchPropensityEstimator
+from .models import (
+    SwitchPropensityEstimator,
+    RiskSlimClassifier,
+    FasterRiskClassifier
+)
 from .data.data import get_data_handler_from_config
 from .pipeline import create_pipeline
 from . import NET_ESTIMATORS, RECURRENT_NET_ESTIMATORS
@@ -14,13 +17,27 @@ from . import NET_ESTIMATORS, RECURRENT_NET_ESTIMATORS
 ALL_NET_ESTIMATORS = NET_ESTIMATORS | RECURRENT_NET_ESTIMATORS
 
 
+# @TODO: rulefit uses internal cross-validation, so perhaps we should train it using 
+# both training data and validation data.
+
 def _get_previous_therapy_index(feature_names, prev_therapy_prefix):
-    feature_names = np.array([s.split('__')[1] for s in feature_names])
     prev_therapy_columns = [s for s in feature_names if s.startswith(prev_therapy_prefix)]
     prev_therapy_index = np.array(
         [np.flatnonzero(feature_names == c).item() for c in prev_therapy_columns]
     )
     return prev_therapy_index
+
+
+def _get_feature_names(preprocessor, X=None):
+    if not hasattr(preprocessor, 'n_features_in_'):
+            if X is None:
+                raise ValueError(
+                    "Training data `X` must be provided if the preprocessor is" 
+                    "not already fitted."
+                )
+            preprocessor.fit(X)
+    feature_names = preprocessor.get_feature_names_out()
+    return np.array([s.split('__')[1] for s in feature_names])
 
 
 def _separate_switches(preprocessor, treatment, X, y):
@@ -29,11 +46,10 @@ def _separate_switches(preprocessor, treatment, X, y):
     prev_therapy_index = _get_previous_therapy_index(feature_names, prefix)
     
     Xt = preprocessor.transform(X)
-    yt = LabelEncoder().fit_transform(y)
 
     y_prev = np.argmax(Xt[:, prev_therapy_index], axis=1)
-    switch = (y_prev != yt)
-    return Xt[switch], yt[switch]
+    switch = (y_prev != y)
+    return Xt[switch], y[switch]
 
 
 def train(config, estimator_name):
@@ -62,10 +78,19 @@ def train(config, estimator_name):
         fit_params['estimator__X_valid'] = X_valid
         fit_params['estimator__y_valid'] = y_valid
     
+    if isinstance(estimator, RiskSlimClassifier):
+        feature_names = _get_feature_names(preprocessor, X_train)
+        outcome_name = data_handler.TREATMENT
+        fit_params['estimator__feature_names'] = feature_names
+        fit_params['estimator__outcome_name'] = outcome_name
+    
+    if isinstance(estimator, FasterRiskClassifier):
+        feature_names = _get_feature_names(preprocessor, X_train)
+        outcome_name = data_handler.TREATMENT
+        fit_params['estimator__feature_names'] = feature_names
+    
     if isinstance(estimator, SwitchPropensityEstimator):
-        if not hasattr(preprocessor, 'n_features_in_'):
-            preprocessor.fit(X_train)
-        feature_names = preprocessor.get_feature_names_out()
+        feature_names = _get_feature_names(preprocessor, X_train)
         prefix = data_handler.TREATMENT + '_1_'
         prev_therapy_index = _get_previous_therapy_index(feature_names, prefix)
         fit_params['estimator__prev_therapy_index'] = prev_therapy_index
@@ -106,6 +131,11 @@ def predict(
     
     if not expects_groups(pipeline[-1]):
         X = X.drop(columns=data_handler.GROUP)
+
+    metrics = [
+        (metric, {}) if isinstance(metric, str) else tuple(*metric.items())
+        for metric in metrics
+    ]
 
     columns = ['estimator_name', 'subset']
     data = [estimator_name, subset]
