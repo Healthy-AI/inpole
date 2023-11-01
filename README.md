@@ -4,6 +4,12 @@ This repository contains code to train and evaluate models for interpretably pol
 
 ## Installation
 
+This package makes use of [risk-slim](https://github.com/ustunb/risk-slim), which in turn requires [CPLEX](https://www.ibm.com/products/ilog-cplex-optimization-studio). Install CPLEX by following the instructions [here](https://github.com/ustunb/risk-slim/blob/master/docs/cplex_instructions.md) (you can ignore step 4). Then, clone the [risk-slim](https://github.com/ustunb/risk-slim) repository to your local computer:
+```bash
+$ git clone https://github.com/ustunb/risk-slim.git
+```
+
+Now, install `inpole` by typing the following commands:
 ```bash
 $ git clone https://github.com/antmats/inpole.git
 $ cd inpole
@@ -20,17 +26,27 @@ The following models are currently supported:
 - feedforward prototype network (pronet)
 - recurrent prototype network (prosenet)
 - logistic regression (lr)
-- hard decision tree (dt).
+- hard decision tree (dt)
+- [risk scores](https://github.com/ustunb/risk-slim/tree/master) (riskslim)
+- [rule ensembles](https://github.com/christophM/rulefit/tree/master) (rulefit)
+- [fast risk scores](https://github.com/jiachangliu/FasterRisk/tree/main) (fasterrisk).
 
-All models are defined in [`inpole/models/models.py`](inpole/models/models.py) and their hyperparameters are specified in [`inpole/models/hparam_registry.py`](inpole/models/hparam_registry.py). Each model is also given an alias (in brackets above) and listed in [`inpole/__init__.py`](inpole/__init__.py).
+### Adding a new model
 
-Each model should inherit from `inpole.models.ClassifierMixin` to enable evalutation with respect to different metrics (accuracy, AUC, ECE, SCE). Furthermore, each model must implement the functions `fit`, `predict_proba` and `predict` as shown in the example below:
+If you want to add a new model, please note the following:
+- All models should be defined in [`inpole/models/models.py`](inpole/models/models.py). 
+- Hyperparameters for all models should be specified in [`inpole/models/hparam_registry.py`](inpole/models/hparam_registry.py).
+- All models should be given an alias (in brackets above) and listed in [`inpole/__init__.py`](inpole/__init__.py).
+- All models should inherit from `inpole.models.models.ClassifierMixin` which enables evalutation with respect to several metrics (accuracy, AUC, ECE, SCE).
+- All models should implement the functions `fit`, `predict_proba` and `predict` as shown in the example below.
 
 ```python
-from inpole.models.models import ClassifierMixin
+import numpy as np
 
 class MyModel(ClassifierMixin):
     def fit(self, X, y, **fit_params):
+        # Infer classes from `y`.
+        self.classes_ = np.unique(y)
         ...
     
     def predict_proba(self, X, y):
@@ -43,9 +59,15 @@ class MyModel(ClassifierMixin):
 ## Datasets
 
 The following datasets are currently supported:
-- Rheumatoid arthritis (ra).
+- rheumatoid arthritis (ra)
+- alzheimer's disease neuroimaging initiative (adni).
 
-All datasets are defined in [`inpole/data/data.py`](inpole/data/data.py). Data-dependent hyperparameters are specified in [`inpole/models/hparam_registry.py`](inpole/models/hparam_registry.py). Each dataset is also given an alias (in brackets above) and listed in [`inpole/__init__.py`](inpole/__init__.py).
+### Adding a new dataset
+
+If you want to add a new dataset, please note the following:
+- All datasets should be defined in [`inpole/data/data.py`](inpole/data/data.py).
+- Data-dependent hyperparameters should be specified in [`inpole/models/hparam_registry.py`](inpole/models/hparam_registry.py).
+- All datasets should be given an alias (in brackets above) and listed in [`inpole/__init__.py`](inpole/__init__.py).
 
 ## Train and evaluate a single model
 
@@ -70,6 +92,8 @@ $ python scripts/run_experiment.py \
 ```
 
 ## Alvis usage
+
+**NOTE: This section needs to be updated!**
 
 Assuming the project is located in the folder `inpole`, a working Python environment utilizing pre-installed modules can be created in the following way:
 ```bash
