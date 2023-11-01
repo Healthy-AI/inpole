@@ -3,6 +3,15 @@ experiment: ra
 results:
   path: results/ra
 
+metrics:
+- accuracy
+- auc:
+    average: macro
+- auc: 
+    average: null
+- ece
+- sce
+
 data:
   path: data/ra/data.pkl
   valid_size: 0.2
