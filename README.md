@@ -75,42 +75,60 @@ Each dataset corresponds to an experiment with the same name as the dataset's al
 
 ## Train and evaluate a single model
 
-Training and evaluation of a single model is performed via the script [`scripts/train_predict.py`](scripts/train_predict.py). Type `python scripts/train_predict.py -h` for details.
+Training and evaluation of a single model is performed using the script [`scripts/train_predict.py`](scripts/train_predict.py). Type `python scripts/train_predict.py -h` for details.
 
 Example:
 ```bash
-$ python scripts/train_predict.py --config_path configs/example_config.yaml --estimator sdt --new_out_dir
-```
-
-## Launching a sweep
-
-A parameter sweep can be performed using the script [`scripts/run_experiment.py`](scripts/run_experiment.py). Type `python scripts/run_experiment.py -h` for details.
-
-Example:
-```bash
-$ python scripts/run_experiment.py \
+$ python scripts/train_predict.py \
 > --config_path configs/example_config.yaml \
-> --estimators sdt rdt
+> --estimator sdt \
+> --new_out_dir
 ```
 
 ## Alvis usage
 
-On Alvis, the easiest way to run the code is using a container. To create a container, copy the files [`environment.yml`](environment.yml) and [`inpole_env.def`](`inpole_env.def) to a storage location with plenty of space. Then type
+On Alvis, the code can be run using a container. To create a container, copy the file [`inpole_env.def`](`inpole_env.def) to a storage location with plenty of space. Then, assuming the `inpole` repository is cloned to your home directory and you are located in the storage directory, type
 ```bash
-$ apptainer build inpole_env.sif inpole_env.def
+$ apptainer build --bind $HOME:/mnt inpole_env.sif inpole_env.def
 ```
 To run Python within the container, type
 ```
-$ apptainer exec --nv inpole_env.sif python --version
+$ apptainer exec inpole_env.sif python --version
+```
+
+Example of how to train and evaluate a single model on Alvis:
+```bash
+$ container_path=/path/to/my/storage/inpole_env.sif
+$ account=my_project_name
+$ cd $HOME/inpole
+$ srun -A $account --gpus-per-node=T4:1 \
+> apptainer exec --nv $container_path python scripts/train_predict.py \
+> --config_path configs/example_config.yaml \
+> --estimator sdt \
+> --new_out_dir
 ```
 The flag `--nv` ensures that GPU resources can be accessed from within the container.
 
-Example of how to launch a sweep using a container:
+### Launching a sweep
+
+A parameter sweep can be performed using the script [`scripts/run_experiment.py`](scripts/run_experiment.py). Type `apptainer exec $container_path python scripts/run_experiment.py -h` for details. This script uses the `sbatch` command, which unfortunatelly is not available from within the container, so a separate environment is needed to launch the sweep:
 ```bash
-$ container_path=/path/to/my/storage/inpole_env.sif
-$ apptainer exec --nv $container_path python scripts/run_experiment.py \
+cd $HOME/inpole
+module purge && module load Python/3.10.8-GCCcore-12.2.0
+virtualenv --system-site-packages sweep_env
+source sweep_env/bin/activate
+pip install --no-cache-dir --no-build-isolation amhelpers==0.5.1
+pip install --no-cache-dir --no-build-isolation --no-deps -e .
+```
+
+Example of how to launch a sweep on Alvis:
+```bash
+cd $HOME/inpole
+module purge && module load Python/3.10.8-GCCcore-12.2.0
+source sweep_env/bin/activate
+$ python scripts/run_experiment.py \
 > --config_path configs/example_config.yaml \
-> --estimators sdt rdt \
+> --estimators sdt rdt
 > --container_path $container_path
 ```
 
