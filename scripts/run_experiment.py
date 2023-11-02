@@ -1,9 +1,9 @@
 import argparse
 
 from amhelpers.config_parsing import load_config
+from amhelpers.sweep import Sweep
 
 from inpole import ESTIMATORS
-from inpole.sweep import Sweep
 
 
 TRAIN_SCRIPT_PATH = 'scripts/slurm_templates/training'

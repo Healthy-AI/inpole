@@ -3,8 +3,9 @@ import argparse
 import subprocess
 from os.path import join
 
+from amhelpers.sweep import create_jobscript_from_template
+
 from inpole import ESTIMATORS
-from inpole.sweep import create_jobscript_from_template
 
 TRAIN_SCRIPT_PATH = 'scripts/slurm_templates/training'
 

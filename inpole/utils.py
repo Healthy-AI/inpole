@@ -1,37 +1,6 @@
 import os
-import hashlib
-import copy
-import datetime
-from pathlib import Path
 
 import torch
-
-
-# @TODO: Move this function to amhelpers.
-def seed_hash(*args):
-    """Derive an integer hash from `args` to use as a random seed."""
-    args_str = str(args)
-    return int(hashlib.md5(args_str.encode('utf-8')).hexdigest(), 16) % (2**31)
-
-
-# @TODO: Move this function to amhelpers.
-def create_results_dir_from_config(
-    config,
-    suffix=None,
-    update_config=False
-):
-    time_stamp = datetime.datetime.now().strftime('%Y%m%d_%H%M')
-    if suffix is not None:
-        time_stamp += '_' + suffix
-    results_path = os.path.join(config['results']['path'], time_stamp)
-    Path(results_path).mkdir(parents=True, exist_ok=True)
-    
-    if update_config:
-        config = copy.deepcopy(config)
-        config['results']['path'] = results_path
-        return results_path, config
-    else:
-        return results_path
 
 
 def seed_torch(seed):

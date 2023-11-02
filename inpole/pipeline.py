@@ -3,12 +3,12 @@ import copy
 import torch
 import sklearn.pipeline as pipeline
 from sklearn.utils import _print_elapsed_time
+from amhelpers.amhelpers import seed_hash
 
 from .models import hparam_registry as hprm
 from .models import SwitchPropensityEstimator
 from .data.utils import *
 from .data import get_data_handler_from_config
-from .utils import seed_hash
 from . import (
     NET_ESTIMATORS,
     RECURRENT_NET_ESTIMATORS,

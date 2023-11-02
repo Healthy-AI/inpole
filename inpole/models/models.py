@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 from scipy.special import expit
 from fasterrisk.fasterrisk import RiskScoreOptimizer, RiskScoreClassifier
+from amhelpers.metrics import ece, sce
 
 import torch
 import torch.nn as nn
@@ -31,7 +32,6 @@ from sklearn.utils.validation import check_is_fitted
 from .utils import plot_save_stats
 from ..utils import seed_torch, compute_squared_distances
 from ..tree import create_decision_stump, create_decision_tree
-from ..metrics import ece, sce
 from .modules import PrototypeNetwork, NNEncoder, RNNEncoder
 
 

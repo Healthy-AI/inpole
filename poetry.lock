@@ -2,13 +2,13 @@
 
 [[package]]
 name = "amhelpers"
-version = "0.4.3"
+version = "0.5.0"
 description = "A collection of handy utilities."
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "amhelpers-0.4.3-py3-none-any.whl", hash = "sha256:4732f2b0900c78feaf24955d7c47c167c07b68953d3221a3a457142df4044916"},
-    {file = "amhelpers-0.4.3.tar.gz", hash = "sha256:c927ce292f40e866c6e7f44c41ca0de51aa78aae8db7b3078323e32d41c34b76"},
+    {file = "amhelpers-0.5.0-py3-none-any.whl", hash = "sha256:3ec2f362700c81eaf25c4ef6957fbb48d55e71efa030b0ba9438addeed5f66b5"},
+    {file = "amhelpers-0.5.0.tar.gz", hash = "sha256:dff14a5842bc0dfa40ccddc9b89d6508d5a965d3cc72a877e331b1c194e629d6"},
 ]
 
 [package.dependencies]
@@ -3711,4 +3711,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = "3.10.4"
-content-hash = "41ee395223e789a57f110438ed1f477ada64a4d17aa433c291cb86f59034c43c"
+content-hash = "84c8d648fc12b2e2a51ff12d1842fbe4d93aa37b47e7e162e024ea8c058a6e66"

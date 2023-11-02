@@ -1,7 +1,7 @@
 import numpy as np
-from . import NNEncoder, RNNEncoder
+from amhelpers.amhelpers import seed_hash
 
-from ..utils import seed_hash
+from . import NNEncoder, RNNEncoder
 from .. import OTHER_ESTIMATORS
 
 
@@ -28,10 +28,12 @@ def _hparams(estimator_name, experiment, seed):
         _hparam('initial_depth', 2, lambda r: r.choice([1, 2]))
         _hparam('lambda_', 1.0e-3, lambda r: 10. ** r.choice([-3, -2, -1]))
         _hparam('module__prediction', 'max', lambda r: r.choice(['max', 'mean']))
+        _hparam('max_depth', 3, lambda r: r.choice([3, 4, 5]))
     
     if estimator_name == 'rdt':
         _hparam('delta1', 1.0e-3, lambda r: 10. ** r.choice([-3, -2, -1]))
         _hparam('delta2', 1.0e-3, lambda r: 10. ** r.choice([-3, -2, -1]))
+        _hparam('module__hidden_dim', 10, lambda r: r.choice([5, 10, 15, 20]))
     
     if estimator_name in ['pronet', 'prosenet']:
         _hparam('d_min', 1, lambda r: r.choice([1, 2, 3, 4, 5]))
@@ -65,11 +67,10 @@ def _hparams(estimator_name, experiment, seed):
         _hparam('max_epochs', 50, lambda r: 50)
         _hparam('batch_size', 32, lambda r: r.choice([32, 64]))
     
-    if experiment == 'ra' and estimator_name in ['sdt', 'rdt']:
-        _hparam('max_depth', 3, lambda r: r.choice([3, 4, 5]))
-    
-    if experiment == 'ra' and estimator_name == 'rdt':
-        _hparam('module__hidden_dim', 10, lambda r: r.choice([5, 10, 15, 20]))
+    if experiment == 'adni' and estimator_name not in OTHER_ESTIMATORS:
+        _hparam('lr', 1.0e-3, lambda r: 10. ** r.choice([-3, -2]))
+        _hparam('max_epochs', 20, lambda r: 20)
+        _hparam('batch_size', 32, lambda r: r.choice([16, 32, 64]))
     
     return hparams
 

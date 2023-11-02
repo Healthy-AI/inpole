@@ -1,7 +1,7 @@
 import argparse
 from functools import partial 
 
-from inpole.sweep import Postprocessing
+from amhelpers.sweep import Postprocessing
 
 
 if __name__ == '__main__':

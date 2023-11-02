@@ -1,6 +1,5 @@
 import numpy as np
-
-from ..utils import seed_hash
+from amhelpers.amhelpers import seed_hash
 
 
 def _hparams(experiment, seed):

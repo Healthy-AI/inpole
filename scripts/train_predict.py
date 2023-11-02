@@ -4,9 +4,9 @@ from os.path import join
 
 from amhelpers.config_parsing import load_config
 from amhelpers.amhelpers import save_yaml
+from amhelpers.amhelpers import create_results_dir_from_config
 
 from inpole import ESTIMATORS
-from inpole.utils import create_results_dir_from_config
 from inpole.train_predict import train, predict
 from inpole.data import get_data_handler_from_config
 
