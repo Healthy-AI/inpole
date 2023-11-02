@@ -9,5 +9,8 @@ dependencies:
 - python=3.10.4
 - mamba
 - pip
-- poetry=1.*
+- poetry=1.6.1
 - pytorch::pytorch=1.12.1
+- pip:
+  # Installation with Poetry fails.
+  - -e ../risk-slim
