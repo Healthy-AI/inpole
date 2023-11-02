@@ -41,7 +41,7 @@ def _get_feature_names(preprocessor, X=None):
 
 
 def _separate_switches(preprocessor, treatment, X, y):
-    feature_names = preprocessor.get_feature_names_out()
+    feature_names = _get_feature_names(preprocessor)
     prefix = treatment + '_1_'
     prev_therapy_index = _get_previous_therapy_index(feature_names, prefix)
     
