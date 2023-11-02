@@ -32,11 +32,13 @@ from sklearn.utils.validation import check_is_fitted
 from .utils import plot_save_stats
 from ..utils import seed_torch, compute_squared_distances
 from ..tree import create_decision_stump, create_decision_tree
-from .modules import PrototypeNetwork, NNEncoder, RNNEncoder
-
-
-# @TODO: Divide into abstract base classes and public classes. All classifiers
-# should have an attribute `alias`.
+from .modules import (
+    PrototypeNetwork,
+    NNEncoder,
+    RNNEncoder,
+    SDT,
+    RDT
+)
 
 
 # Include new classifers here.
@@ -46,7 +48,8 @@ __all__ = [
     'LogisticRegression',
     'DecisionTreeClassifier',
     'DummyClassifier',
-    'PrototypeClassifier',
+    'ProNetClassifier',
+    'ProSeNetClassifier',
     'SwitchPropensityEstimator',
     'RuleFitClassifier',
     'RiskSlimClassifier',
@@ -68,6 +71,11 @@ class EpochScoring(cbs.EpochScoring):
             self.y_preds_.append(y_pred['predictions'])
         else:
             self.y_preds_.append(y_pred)
+
+
+# =============================================================================
+# Base classes
+# =============================================================================
 
 
 class ClassifierMixin:
@@ -147,7 +155,7 @@ class NeuralNetClassifier(ClassifierMixin, skorch.NeuralNetClassifier):
         seed=2023,
         **kwargs
     ):
-        super(NeuralNetClassifier, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
         self.results_path = results_path
         self.epoch_scoring = epoch_scoring
@@ -285,14 +293,14 @@ class NeuralNetClassifier(ClassifierMixin, skorch.NeuralNetClassifier):
         self.history.record(prefix + '_batch_count', batch_count)
 
     def on_epoch_begin(self, net, dataset_train=None, dataset_valid=None, **kwargs):
-        super(NeuralNetClassifier, self).on_epoch_begin(
+        super().on_epoch_begin(
             net, dataset_train, dataset_valid, **kwargs
         )
         if len(self.history) == 1:
             self.history.record('classes_', self.classes_.tolist())
     
     def on_train_end(self, net, X=None, y=None, **kwargs):
-        super(NeuralNetClassifier, self).on_train_end(net, X, y, **kwargs)
+        super().on_train_end(net, X, y, **kwargs)
 
         losses = ['train_loss', 'valid_loss']
         name = self.file_name_prefix_ + 'losses'
@@ -318,7 +326,7 @@ class NeuralNetClassifier(ClassifierMixin, skorch.NeuralNetClassifier):
             self.file_name_prefix_ = ''
 
 
-class SDTClassifer(NeuralNetClassifier):
+class SoftDecisionTreeClassifier(NeuralNetClassifier):
     def __init__(
         self,
         *,
@@ -559,154 +567,6 @@ class SDTClassifer(NeuralNetClassifier):
         graph.render('tree%s' % suffix, self.results_path, view=False, format='png')
 
 
-class RDTClassifer(SDTClassifer):
-    def __init__(
-        self,
-        *,
-        delta1=0.001,
-        delta2=0.001,
-        **kwargs
-    ):
-        super(RDTClassifer, self).__init__(**kwargs)
-
-        self.delta1 = delta1
-        self.delta2 = delta2
-
-    def get_loss(self, y_pred, y_true, X=None, training=False):
-        y_true = to_tensor(y_true, device=self.device)
-        
-        path_probas = y_pred['probas'][0]
-
-        batch_size = y_true.shape[0]
-        input = self.module_.leaf_nodes[0].weight.expand(batch_size, -1, -1)  # Shape (batch_size, n_classes, n_leaf_nodes)
-        
-        num_leaf_nodes = path_probas.shape[-1]
-        target = y_true.unsqueeze(dim=1).expand(batch_size, num_leaf_nodes)
-
-        ce = torch.nn.functional.cross_entropy(input, target, reduction='none')
-
-        loss = torch.sum(path_probas * ce, dim=-1).mean()
-        loss += self.delta1 * y_pred['penalties'][0]
-        loss += self.delta2 *  y_pred['penalties'][1]
-        loss += self.lambda_ *  y_pred['penalties'][2]
-        return loss
-
-    def on_batch_end(self, net, batch=None, training=False, **kwargs):
-        prefix = 'train' if training else 'valid'
-
-        y_pred  = kwargs['y_pred']
-        
-        logits = y_pred['predictions'][0]
-        probas = torch.nn.functional.softmax(logits, dim=1)
-        probas_np = probas.detach().cpu().numpy()
-        
-        for i, c in enumerate(self.classes_):
-            self.history.record_batch(
-                f'{prefix}_proba_{c}', probas_np[:, i].mean().item()
-            )
-
-        penalties = ['evolution_penalty', 'behavior_penalty', 'splitting_penalty']
-        for i, penalty in enumerate(penalties):
-            self.history.record_batch(
-                f'{prefix}_{penalty}', y_pred['penalties'][i].item()
-            )
-
-    def on_train_end(self, net, X=None, y=None, **kwargs):
-        super(RDTClassifer, self).on_train_end(net, X, y, **kwargs)
-        for mode in ['train', 'valid']:
-            probas = [f'{mode}_proba_{c}' for c in self.classes_]
-            name = self.file_name_prefix_ + mode + '_probas'
-            plot_save_stats(self.history, probas, self.results_path, name)
-
-            penalties = ['evolution_penalty', 'behavior_penalty', 'splitting_penalty']
-            penalties = [f'{mode}_{penalty}' for penalty in penalties]
-            name = self.file_name_prefix_ + mode + '_penalties'
-            plot_save_stats(self.history, penalties, self.results_path, name)
-
-
-class LogisticRegression(ClassifierMixin, lm.LogisticRegression):
-    def __init__(
-        self,
-        penalty='l2',
-        *,
-        dual=False,
-        tol=1e-4,
-        C=1.0,
-        fit_intercept=True,
-        intercept_scaling=1,
-        class_weight=None,
-        random_state=None,
-        solver='lbfgs',
-        max_iter=100,
-        multi_class='auto',
-        verbose=0,
-        warm_start=False,
-        n_jobs=None,
-        l1_ratio=None
-    ):
-        super().__init__(
-            penalty=penalty,
-            dual=dual,
-            tol=tol,
-            C=C,
-            fit_intercept=fit_intercept,
-            intercept_scaling=intercept_scaling,
-            class_weight=class_weight,
-            random_state=random_state,
-            solver=solver,
-            max_iter=max_iter,
-            multi_class=multi_class,
-            verbose=verbose,
-            warm_start=warm_start,
-            n_jobs=n_jobs,
-            l1_ratio=l1_ratio
-        )
-
-
-class DecisionTreeClassifier(ClassifierMixin, tree.DecisionTreeClassifier):
-    def __init__(
-        self,
-        *,
-        criterion='gini',
-        splitter='best',
-        max_depth=None,
-        min_samples_split=2,
-        min_samples_leaf=1,
-        min_weight_fraction_leaf=0.0,
-        max_features=None,
-        random_state=None,
-        max_leaf_nodes=None,
-        min_impurity_decrease=0.0,
-        class_weight=None,
-        ccp_alpha=0.0
-    ):
-        super().__init__(
-            criterion='gini',
-            splitter='best',
-            max_depth=None,
-            min_samples_split=2,
-            min_samples_leaf=1,
-            min_weight_fraction_leaf=0.0,
-            max_features=None,
-            random_state=None,
-            max_leaf_nodes=None,
-            min_impurity_decrease=0.0,
-            class_weight=None,
-            ccp_alpha=0.0
-        )
-
-
-class DummyClassifier(ClassifierMixin, dummy.DummyClassifier):
-    def __init__(
-        self, *, strategy='prior', random_state=None, constant=None,
-    ):
-        super().__init__(
-            strategy=strategy,
-            random_state=random_state,
-            constant=constant
-        )
-
-
 class PrototypeClassifier(NeuralNetClassifier):
     loss_terms = [
         'ce_loss',
@@ -852,6 +712,176 @@ class PrototypeClassifier(NeuralNetClassifier):
             plot_save_stats(self.history, loss_terms, self.results_path, name)
 
 
+# =============================================================================
+# Public estimators
+# =============================================================================
+
+
+class SDTClassifer(SoftDecisionTreeClassifier):
+    def __init__(self, **kwargs):
+        super().__init__(module=SDT, **kwargs)
+
+
+class RDTClassifer(SoftDecisionTreeClassifier):
+    def __init__(self, *, delta1=0.001, delta2=0.001, **kwargs):
+        super().__init__(module=RDT, **kwargs)
+
+        self.delta1 = delta1
+        self.delta2 = delta2
+
+    def get_loss(self, y_pred, y_true, X=None, training=False):
+        y_true = to_tensor(y_true, device=self.device)
+        
+        path_probas = y_pred['probas'][0]
+
+        batch_size = y_true.shape[0]
+        input = self.module_.leaf_nodes[0].weight.expand(batch_size, -1, -1)  # Shape (batch_size, n_classes, n_leaf_nodes)
+        
+        num_leaf_nodes = path_probas.shape[-1]
+        target = y_true.unsqueeze(dim=1).expand(batch_size, num_leaf_nodes)
+
+        ce = torch.nn.functional.cross_entropy(input, target, reduction='none')
+
+        loss = torch.sum(path_probas * ce, dim=-1).mean()
+        loss += self.delta1 * y_pred['penalties'][0]
+        loss += self.delta2 *  y_pred['penalties'][1]
+        loss += self.lambda_ *  y_pred['penalties'][2]
+        return loss
+
+    def on_batch_end(self, net, batch=None, training=False, **kwargs):
+        prefix = 'train' if training else 'valid'
+
+        y_pred  = kwargs['y_pred']
+        
+        logits = y_pred['predictions'][0]
+        probas = torch.nn.functional.softmax(logits, dim=1)
+        probas_np = probas.detach().cpu().numpy()
+        
+        for i, c in enumerate(self.classes_):
+            self.history.record_batch(
+                f'{prefix}_proba_{c}', probas_np[:, i].mean().item()
+            )
+
+        penalties = ['evolution_penalty', 'behavior_penalty', 'splitting_penalty']
+        for i, penalty in enumerate(penalties):
+            self.history.record_batch(
+                f'{prefix}_{penalty}', y_pred['penalties'][i].item()
+            )
+
+    def on_train_end(self, net, X=None, y=None, **kwargs):
+        super(RDTClassifer, self).on_train_end(net, X, y, **kwargs)
+        for mode in ['train', 'valid']:
+            probas = [f'{mode}_proba_{c}' for c in self.classes_]
+            name = self.file_name_prefix_ + mode + '_probas'
+            plot_save_stats(self.history, probas, self.results_path, name)
+
+            penalties = ['evolution_penalty', 'behavior_penalty', 'splitting_penalty']
+            penalties = [f'{mode}_{penalty}' for penalty in penalties]
+            name = self.file_name_prefix_ + mode + '_penalties'
+            plot_save_stats(self.history, penalties, self.results_path, name)
+
+
+class LogisticRegression(ClassifierMixin, lm.LogisticRegression):
+    def __init__(
+        self,
+        penalty='l2',
+        *,
+        dual=False,
+        tol=1e-4,
+        C=1.0,
+        fit_intercept=True,
+        intercept_scaling=1,
+        class_weight=None,
+        random_state=None,
+        solver='lbfgs',
+        max_iter=100,
+        multi_class='auto',
+        verbose=0,
+        warm_start=False,
+        n_jobs=None,
+        l1_ratio=None
+    ):
+        super().__init__(
+            penalty=penalty,
+            dual=dual,
+            tol=tol,
+            C=C,
+            fit_intercept=fit_intercept,
+            intercept_scaling=intercept_scaling,
+            class_weight=class_weight,
+            random_state=random_state,
+            solver=solver,
+            max_iter=max_iter,
+            multi_class=multi_class,
+            verbose=verbose,
+            warm_start=warm_start,
+            n_jobs=n_jobs,
+            l1_ratio=l1_ratio
+        )
+
+
+class DecisionTreeClassifier(ClassifierMixin, tree.DecisionTreeClassifier):
+    def __init__(
+        self,
+        *,
+        criterion='gini',
+        splitter='best',
+        max_depth=None,
+        min_samples_split=2,
+        min_samples_leaf=1,
+        min_weight_fraction_leaf=0.0,
+        max_features=None,
+        random_state=None,
+        max_leaf_nodes=None,
+        min_impurity_decrease=0.0,
+        class_weight=None,
+        ccp_alpha=0.0
+    ):
+        super().__init__(
+            criterion='gini',
+            splitter='best',
+            max_depth=None,
+            min_samples_split=2,
+            min_samples_leaf=1,
+            min_weight_fraction_leaf=0.0,
+            max_features=None,
+            random_state=None,
+            max_leaf_nodes=None,
+            min_impurity_decrease=0.0,
+            class_weight=None,
+            ccp_alpha=0.0
+        )
+
+
+class DummyClassifier(ClassifierMixin, dummy.DummyClassifier):
+    def __init__(
+        self, *, strategy='prior', random_state=None, constant=None,
+    ):
+        super().__init__(
+            strategy=strategy,
+            random_state=random_state,
+            constant=constant
+        )
+
+
+class ProNetClassifier(PrototypeClassifier):
+    def __init__(self, **kwargs):
+        super().__init__(
+            module=PrototypeNetwork,
+            module__encoder=NNEncoder,
+            **kwargs
+        )
+
+
+class ProSeNetClassifier(PrototypeClassifier):
+    def __init__(self, **kwargs):
+        super().__init__(
+            module=PrototypeNetwork,
+            module__encoder=RNNEncoder,
+            **kwargs
+        )
+
+
 class MLPClassifier(NeuralNetClassifier):
     def __init__(self, **kwargs):
         super().__init__(
@@ -860,6 +890,9 @@ class MLPClassifier(NeuralNetClassifier):
             module__num_prototypes=-1,
             **kwargs
         )
+    
+    def infer(self, x, **fit_params):
+        return super().infer(x, **fit_params)[0]
 
 
 class RNNClassifier(NeuralNetClassifier):
@@ -870,6 +903,9 @@ class RNNClassifier(NeuralNetClassifier):
             module__num_prototypes=-1,
             **kwargs
         )
+    
+    def infer(self, x, **fit_params):
+        return super().infer(x, **fit_params)[0]
 
 
 class SwitchPropensityEstimator(ClassifierMixin, BaseEstimator):

@@ -1,7 +1,6 @@
 import numpy as np
 from amhelpers.amhelpers import seed_hash
 
-from . import NNEncoder, RNNEncoder
 from .. import OTHER_ESTIMATORS
 
 
@@ -41,13 +40,11 @@ def _hparams(estimator_name, experiment, seed):
         _hparam('module__num_prototypes', 10, lambda r: r.choice([10, 20, 30]))
         
     if estimator_name == 'pronet':
-        _hparam('module__encoder', NNEncoder, lambda r: NNEncoder)
         hidden_dims = np.array([(32,), (64,), (32, 32), (64, 64)], dtype=object)
         _hparam('module__encoder__hidden_dims', (32,), lambda r: r.choice(hidden_dims))
         _hparam('module__encoder__output_dim', 32, lambda r: r.choice([32, 64]))
     
     if estimator_name == 'prosenet':
-        _hparam('module__encoder', RNNEncoder, lambda r: RNNEncoder)
         _hparam('module__encoder__output_dim', 32, lambda r: r.choice([32, 64]))
         _hparam('module__encoder__num_layers', 1, lambda r: r.choice([1, 2]))
     

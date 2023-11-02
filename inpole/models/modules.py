@@ -13,15 +13,6 @@ from ..utils import compute_squared_distances
 from ..tree import get_node_indices_per_layer, draw_tree
 
 
-__all__ = [
-    'SDT',
-    'RDT',
-    'NNEncoder',
-    'RNNEncoder',
-    'PrototypeNetwork'
-]
-
-
 ALL_NODE_MODULES = [
     'inner_nodes',
     'leaf_nodes',

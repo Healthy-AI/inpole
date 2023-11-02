@@ -12,8 +12,7 @@ from .data import get_data_handler_from_config
 from . import (
     NET_ESTIMATORS,
     RECURRENT_NET_ESTIMATORS,
-    OTHER_ESTIMATORS,
-    NET_MODULES
+    OTHER_ESTIMATORS
 )
 
 
@@ -91,13 +90,11 @@ def _create_estimator(
         params['batch_size'] = int(params['batch_size'])
 
     if estimator_name in NET_ESTIMATORS:
-        module = NET_MODULES[estimator_name]
-        return NET_ESTIMATORS[estimator_name](module=module, **params)
+        return NET_ESTIMATORS[estimator_name](**params)
     
     if estimator_name in RECURRENT_NET_ESTIMATORS:
         params.update(_recurrent_net_params)
-        module = NET_MODULES[estimator_name]
-        return RECURRENT_NET_ESTIMATORS[estimator_name](module=module, **params)
+        return RECURRENT_NET_ESTIMATORS[estimator_name](**params)
     
     if estimator_name in OTHER_ESTIMATORS:
         return OTHER_ESTIMATORS[estimator_name](**params)

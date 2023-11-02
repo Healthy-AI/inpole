@@ -9,12 +9,14 @@ EXPERIMENTS = {
 
 NET_ESTIMATORS = {
     'sdt': SDTClassifer,
-    'pronet': PrototypeClassifier
+    'pronet': ProNetClassifier,
+    'mlp': MLPClassifier
 }
 
 RECURRENT_NET_ESTIMATORS = {
     'rdt': RDTClassifer,
-    'prosenet': PrototypeClassifier
+    'prosenet': ProSeNetClassifier,
+    'rnn': RNNClassifier
 }
 
 OTHER_ESTIMATORS = {
@@ -24,13 +26,6 @@ OTHER_ESTIMATORS = {
     'rulefit': RuleFitClassifier,
     'riskslim': RiskSlimClassifier,
     'fasterrisk': FasterRiskClassifier
-}
-
-NET_MODULES = {
-    'sdt': SDT,
-    'rdt': RDT,
-    'pronet': PrototypeNetwork,
-    'prosenet': PrototypeNetwork
 }
 
 ESTIMATORS = (

@@ -3,7 +3,11 @@ import argparse
 from amhelpers.config_parsing import load_config
 from amhelpers.sweep import Sweep
 
-from inpole import ESTIMATORS
+try:
+    from inpole import ESTIMATORS
+    estimators_kwargs = {'choices': ESTIMATORS, 'default': ESTIMATORS}
+except ModuleNotFoundError:
+    estimators_kwargs = {}
 
 
 TRAIN_SCRIPT_PATH = 'scripts/slurm_templates/training'
@@ -18,7 +22,7 @@ CONTAINER_PATH = '/mimer/NOBACKUP/groups/inpole/singularity/inpole_env.sif'
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Run experiment.")
     parser.add_argument('--config_path', type=str, required=True)
-    parser.add_argument('--estimators', nargs='+', type=str, choices=ESTIMATORS, default=ESTIMATORS)
+    parser.add_argument('--estimators', nargs='+', type=str, **estimators_kwargs)
     parser.add_argument('--train_script', type=str, default=TRAIN_SCRIPT_PATH)
     parser.add_argument('--pre_script', type=str, default=PRE_SCRIPT_PATH)
     parser.add_argument('--post_script', type=str, default=POST_SCRIPT_PATH)
