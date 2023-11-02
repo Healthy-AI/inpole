@@ -23,8 +23,5 @@ cp -r inpole $TMPDIR
 cd $TMPDIR/inpole
 
 module purge
-source $HOME/inpole/scripts/slurm_templates/load_modules
-source $HOME/inpole/inpole_env/bin/activate
-
 apptainer exec --nv $container_path python scripts/train_predict.py \
   --config_path $container_path --estimator $estimator
