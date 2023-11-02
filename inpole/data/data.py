@@ -161,7 +161,7 @@ class RAData(Data):
             OneHotEncoder(
                 drop='if_binary',
                 handle_unknown='ignore',
-                sparse=False
+                sparse_output=False
             )
         )
 
@@ -237,7 +237,7 @@ class ADNIData(Data):
 
     def get_column_transformer(self):
         return make_column_transformer(
-            (OneHotEncoder(handle_unknown='error', sparse=False), self.FEATURES),
+            (OneHotEncoder(handle_unknown='error', sparse_output=False), self.FEATURES),
             remainder='passthrough'  # Passthrough the group column
         )
 
