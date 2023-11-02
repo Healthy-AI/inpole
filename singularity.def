@@ -12,6 +12,8 @@ From: continuumio/miniconda3:latest
     # Clone the inpole repository.
     git clone https://github.com/antmats/inpole.git
 
+    # @TODO: Install CPLEX.
+
     # Install gcc.
     apt-get update && apt-get install -y gcc
 
@@ -24,11 +26,11 @@ From: continuumio/miniconda3:latest
     conda env create -f environment.yml
 
     # Install other packages using Poetry.
-    ENV_NAME=$(head -1 environment.yml | cut -d' ' -f2)
-    conda activate $ENV_NAME
+    env_name=$(head -1 environment.yml | cut -d' ' -f2)
+    conda activate $env_name
     poetry install
 
-    # Make sure that the environment is activated when the container is run.
+    # Activate the environment when the container is run.
     echo ". /opt/conda/etc/profile.d/conda.sh" >> $SINGULARITY_ENVIRONMENT
-    echo "conda activate $ENV_NAME" >> $SINGULARITY_ENVIRONMENT
+    echo "conda activate $env_name" >> $SINGULARITY_ENVIRONMENT
     
