@@ -37,7 +37,7 @@ If you want to add a new model, please note the following:
 - All models should be defined in [`inpole/models/models.py`](inpole/models/models.py). 
 - Hyperparameters for all models should be specified in [`inpole/models/hparam_registry.py`](inpole/models/hparam_registry.py).
 - All models should be given an alias (in brackets above) and listed in [`inpole/__init__.py`](inpole/__init__.py).
-- All models should inherit from `inpole.models.models.ClassifierMixin` which enables evalutation with respect to several metrics (accuracy, AUC, ECE, SCE).
+- All models should inherit from [`inpole.models.models.ClassifierMixin`](https://github.com/antmats/inpole/blob/main/inpole/models/models.py#L73) which enables evalutation with respect to several metrics (accuracy, AUC, ECE, SCE).
 - All models should implement the functions `fit`, `predict_proba` and `predict` as shown in the example below.
 
 ```python
@@ -69,9 +69,13 @@ If you want to add a new dataset, please note the following:
 - Data-dependent hyperparameters should be specified in [`inpole/models/hparam_registry.py`](inpole/models/hparam_registry.py).
 - All datasets should be given an alias (in brackets above) and listed in [`inpole/__init__.py`](inpole/__init__.py).
 
+## Configuration files
+
+Each dataset corresponds to an experiment with the same name as the dataset's alias (e.g., "ra"). Experiment-specific settings such as paths to data and results, evaluation metrics and seeds should be specified in a YAML file. See [`configs/example_config.yaml`](configs/example_config.yaml) for an example.
+
 ## Train and evaluate a single model
 
-Training and evaluating of a single model is handled via the script [`scripts/train_predict.py`](scripts/train_predict.py). Type `python scripts/train_predict.py -h` for details.
+Training and evaluation of a single model is performed via the script [`scripts/train_predict.py`](scripts/train_predict.py). Type `python scripts/train_predict.py -h` for details.
 
 Example:
 ```bash
@@ -80,39 +84,39 @@ $ python scripts/train_predict.py --config_path configs/example_config.yaml --es
 
 ## Launching a sweep
 
-A parameter sweep can be performed via the script [`scripts/run_experiment.py`](scripts/run_experiment.py). Type `python scripts/run_experiment.py -h` for details.
+A parameter sweep can be performed using the script [`scripts/run_experiment.py`](scripts/run_experiment.py). Type `python scripts/run_experiment.py -h` for details.
 
 Example:
 ```bash
 $ python scripts/run_experiment.py \
 > --config_path configs/example_config.yaml \
-> --estimators sdt \
-> --account <ACCOUNT> \
-> --gpu <GPU>
+> --estimators sdt rdt
 ```
 
 ## Alvis usage
 
-**NOTE: This section needs to be updated!**
-
-Assuming the project is located in the folder `inpole`, a working Python environment utilizing pre-installed modules can be created in the following way:
+On Alvis, the easiest way to run the code is using a container. To create a container, copy the files [`environment.yml`](environment.yml) and [`inpole_env.def`](`inpole_env.def) to a storage location with plenty of space. Then type
 ```bash
-$ cd inpole
-$ module load PyTorch/1.12.1-foss-2022a-CUDA-11.7.0 \
-> scikit-learn/1.1.2-foss-2022a \
-> IPython/8.5.0-GCCcore-11.3.0 \
-> Seaborn/0.12.1-foss-2022a
-$ virtualenv --system-site-packages inpole_env
-$ source inpole_env/bin/activate
-$ pip install --no-cache-dir --no-build-isolation \
-> gitpython==3.1.32 skorch==0.13.0 amhelpers==0.4.3 \
-> conda-lock==2.0.0 graphviz==0.20.1 colorcet==3.0.1
-$ pip install --no-cache-dir --no-build-isolation --no-deps -e .
+$ apptainer build inpole_env.sif inpole_env.def
+```
+To run Python within the container, type
+```
+$ apptainer exec --nv inpole_env.sif python --version
+```
+The flag `--nv` ensures that GPU resources can be accessed from within the container.
+
+Example of how to launch a sweep using a container:
+```bash
+$ container_path=/path/to/my/storage/inpole_env.sif
+$ apptainer exec --nv $container_path python scripts/run_experiment.py \
+> --config_path configs/example_config.yaml \
+> --estimators sdt rdt \
+> --container_path $container_path
 ```
 
-### Using configs written for Alvis usage on your local computer
+### Using configuration files written for Alvis usage on your local computer
 
-To automatically convert pathnames on Alvis to pathnames on your local computer, type the following commands which assume that you are located into the project folder and that data are located under `inpole/data` and results are saved under `inpole/results`:
+To automatically convert pathnames on Alvis to pathnames on your local computer, type the following commands which assume that you are located in the `inpole` directory and that data are stored under `inpole/data` and results are saved under `inpole/results`:
 ```bash
 $ export LOCAL_HOME_PATH=$HOME
 $ export CLUSTER_PROJECT_PATH='/mimer/NOBACKUP/groups/inpole'
@@ -121,23 +125,13 @@ $ export LOCAL_PROJECT_PATH=$PWD
 
 ### Launch a Jupyter notebook
 
-To launch a Jupyter notebook on Alvis, first crate a config file `inpole.sh` under `~/portal/jupyter/` and add the following lines:
+To launch a Jupyter notebook on Alvis, first crate a configuration file `inpole.sh` in `~/portal/jupyter/` and add the following lines:
 ```sh
-cd $HOME/inpole
-
 module purge
 
-module load PyTorch/1.12.1-foss-2022a-CUDA-11.7.0
-module load scikit-learn/1.1.2-foss-2022a
-module load IPython/8.5.0-GCCcore-11.3.0
-module load Seaborn/0.12.1-foss-2022a
-module load JupyterLab/3.5.0-GCCcore-11.3.0
+container_path=/path/to/my/storage/inpole_env.sif
 
-source inpole_env/bin/activate
-
-python -m ipykernel install --user --name=inpole
-
-jupyter lab --config="${CONFIG_FILE}"
+apptainer exec --nv $container_path jupyter notebook --config="${CONFIG_FILE}"
 ```
 
 Then, start a Jupyter notebook server on [Open OnDemand](https://portal.c3se.chalmers.se/public/root/) using the environment `~/portal/jupyter/inpole.sh`.
