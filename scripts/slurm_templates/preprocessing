@@ -7,6 +7,7 @@
 #SBATCH --output=<EXPERIMENT_PATH>/logs/%x_%j.out
 
 experiment_path='<EXPERIMENT_PATH>'
+container_path='<CONTAINER_PATH>'
 
 cd ~
 cp -r inpole $TMPDIR

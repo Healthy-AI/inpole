@@ -8,6 +8,7 @@
 
 experiment='<EXPERIMENT>'
 experiment_path='<EXPERIMENT_PATH>'
+container_path='<CONTAINER_PATH>'
 
 cd ~
 cp -r inpole $TMPDIR
@@ -17,4 +18,5 @@ module purge
 source $HOME/inpole/scripts/slurm_templates/load_modules
 source $HOME/inpole/inpole_env/bin/activate
 
-python scripts/collect_results.py --experiment $experiment --experiment_path $experiment_path
+apptainer exec --nv $container_path python scripts/collect_results.py \
+  --experiment $experiment --experiment_path $experiment_path

@@ -12,6 +12,8 @@ POST_SCRIPT_PATH = 'scripts/slurm_templates/postprocessing'
 
 ACCOUNT = 'NAISS2023-22-686'
 
+CONTAINER_PATH = '/mimer/NOBACKUP/groups/inpole/singularity/inpole_env.sif'
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Run experiment.")
@@ -25,6 +27,7 @@ if __name__ == '__main__':
     parser.add_argument('--include_default_hparams', action='store_true')
     parser.add_argument('--account', type=str, default=ACCOUNT)
     parser.add_argument('--gpu', type=str, choices=['T4', 'V100', 'A40', 'A100'], default='A40')
+    parser.add_argument('--container_path', type=str, default=CONTAINER_PATH)
     parser.add_argument('--dry_run', action='store_true')
     args = parser.parse_args()
     
@@ -41,7 +44,8 @@ if __name__ == '__main__':
         args.include_default_hparams,
         options={
             'account': args.account,
-            'gpu': args.gpu
+            'gpu': args.gpu,
+            'container_path': args.container_path
         }
     )
     sweep.prepare()

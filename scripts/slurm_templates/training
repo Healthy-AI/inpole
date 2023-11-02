@@ -8,6 +8,7 @@
 
 experiment_path='<EXPERIMENT_PATH>'
 estimator='<ESTIMATOR>'
+container_path='<CONTAINER_PATH>'
 
 if [ -z $SLURM_ARRAY_TASK_ID ]
 then
@@ -15,7 +16,7 @@ then
 else
   config_number=$(printf '%03d' $SLURM_ARRAY_TASK_ID)
 fi
-config=${experiment_path}/configs/${estimator}/config${config_number}.yaml
+config_path=${experiment_path}/configs/${estimator}/config${config_number}.yaml
 
 cd ~
 cp -r inpole $TMPDIR
@@ -25,4 +26,5 @@ module purge
 source $HOME/inpole/scripts/slurm_templates/load_modules
 source $HOME/inpole/inpole_env/bin/activate
 
-python scripts/train_predict.py --config_path $config --estimator $estimator
+apptainer exec --nv $container_path python scripts/train_predict.py \
+  --config_path $container_path --estimator $estimator
