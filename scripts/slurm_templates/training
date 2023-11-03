@@ -24,4 +24,4 @@ cd $TMPDIR/inpole
 
 module purge
 apptainer exec --nv $container_path python scripts/train_predict.py \
-  --config_path $container_path --estimator $estimator
+  --config_path $config_path --estimator $estimator
