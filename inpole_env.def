@@ -5,14 +5,16 @@ From: continuumio/miniconda3:latest
 %post
     # @TODO: Install CPLEX.
 
-    # Install gcc.
+    # Install gcc, libgmp3-dev and rsync.
     apt-get update && apt-get install -y gcc
+    apt-get install -y libgmp3-dev
+    apt-get install -y rsync
 
     # Clone the risk-slim repository.
     git clone https://github.com/ustunb/risk-slim.git
 
     # Install conda packages.
-    cp -r /mnt/inpole .
+    rsync -r /mnt/inpole . --exclude='*_env'
     cd inpole
     . /opt/conda/etc/profile.d/conda.sh
     conda env create -f environment.yml
@@ -20,7 +22,14 @@ From: continuumio/miniconda3:latest
     # Install other packages using Poetry.
     env_name=$(head -1 environment.yml | cut -d' ' -f2)
     conda activate $env_name
-    poetry install
+    poetry install --without dev
+
+    # Install PyFIM.
+    cd ..
+    wget https://borgelt.net/src/pyfim.tar.gz
+    mkdir pyfim && tar -xzf pyfim.tar.gz -C pyfim
+    cd pyfim
+    $CONDA_PREFIX/bin/python setup_fim.py install
 
     # Activate the environment when the container is run.
     echo ". /opt/conda/etc/profile.d/conda.sh" >> $SINGULARITY_ENVIRONMENT
