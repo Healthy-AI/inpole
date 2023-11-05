@@ -16,12 +16,26 @@ then
 else
   config_number=$(printf '%03d' $SLURM_ARRAY_TASK_ID)
 fi
-config_path=${experiment_path}/configs/${estimator}/config${config_number}.yaml
+config_path="${experiment_path}/configs/${estimator}/config${config_number}.yaml"
 
 cd ~
-cp -r inpole $TMPDIR
+rsync -r inpole $TMPDIR --exclude='*_env'
 cd $TMPDIR/inpole
 
 module purge
 apptainer exec --nv $container_path python scripts/train_predict.py \
   --config_path $config_path --estimator $estimator
+
+# Copy log file to experiment folder.
+if [ $SLURM_ARRAY_JOB_ID ]
+then
+  log_path="${experiment_path}/logs/"
+  log_path+="${SLURM_JOB_NAME}_${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.out"
+  get_results_path() {
+      cmd="import amhelpers.config_parsing as cp;"
+      cmd+="print(cp.load_config('$1')['results']['path'])"
+      apptainer exec $container_path python -c "$cmd"
+  }
+  results_path=$(get_results_path $config_path)
+  cp $log_path $results_path
+fi

@@ -10,8 +10,8 @@ experiment_path='<EXPERIMENT_PATH>'
 container_path='<CONTAINER_PATH>'
 
 cd ~
-cp -r inpole $TMPDIR
+rsync -r inpole $TMPDIR --exclude='*_env'
 cd $TMPDIR/inpole
 
 module purge
-echo "Done."
+echo 'Done.'
