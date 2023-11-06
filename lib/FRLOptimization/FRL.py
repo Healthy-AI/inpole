@@ -7,8 +7,8 @@ import gmpy
 import numpy as np
 import copy
 
-from FRLutil import find_caught_instances, find_remain_instances
-from curiosity import compute_curiosity
+from FRLOptimization.FRLutil import find_caught_instances, find_remain_instances
+from FRLOptimization.curiosity import compute_curiosity
 
 def learn_FRL(X_pos, X_neg, n, w, C, prob_terminate, T, lmda):
     # initialize
@@ -25,7 +25,7 @@ def learn_FRL(X_pos, X_neg, n, w, C, prob_terminate, T, lmda):
     
     for t in range(T):
         if (t + 1) % 100 == 0:
-            print "building FRL %d" % (t + 1)
+            print("building FRL %d" % (t + 1))
         
         # available_antecedents does not include the default "null" rule
         available_antecedents = [j for j in range(1,len(X_pos))]

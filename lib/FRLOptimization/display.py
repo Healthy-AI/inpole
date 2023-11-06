@@ -4,16 +4,16 @@
 def display_rule_list(d_rule, d_prob, ruleset, d_pos, d_neg, d_obj, L_d):
     for i in range(len(d_rule)):
         if i == 0:
-            print "if %s, then prob. = %f (+: %d, -: %d, obj.: %f)" \
-                % (ruleset[d_rule[i]], d_prob[i], d_pos[i], d_neg[i], d_obj[i])
+            print("if %s, then prob. = %f (+: %d, -: %d, obj.: %f)" \
+                % (ruleset[d_rule[i]], d_prob[i], d_pos[i], d_neg[i], d_obj[i]))
         elif i < (len(d_rule)-1):
-            print "else if %s, then prob. = %f (+: %d, -: %d, obj.: %f)" \
-                % (ruleset[d_rule[i]], d_prob[i], d_pos[i], d_neg[i], d_obj[i])
+            print("else if %s, then prob. = %f (+: %d, -: %d, obj.: %f)" \
+                % (ruleset[d_rule[i]], d_prob[i], d_pos[i], d_neg[i], d_obj[i]))
         else:
             assert d_rule[i] == 0
-            print "else prob. = %f (+: %d, -: %d, obj.: %f)" \
-                % (d_prob[i], d_pos[i], d_neg[i], d_obj[i])
-    print "objective = %f" % L_d
+            print("else prob. = %f (+: %d, -: %d, obj.: %f)" \
+                % (d_prob[i], d_pos[i], d_neg[i], d_obj[i]))
+    print("objective = %f" % L_d)
 
 def write_rule_list(fname, d_rule, d_prob, ruleset, d_pos, d_neg, d_obj, L_d,
                     **options):
@@ -47,18 +47,18 @@ def display_softFRL(d_rule, d_prob, ruleset,
                     d_pos, d_neg, d_pos_prop, d_obj, L_d):
     for i in range(len(d_rule)):
         if i == 0:
-            print "if %s, then prob. = %f (+: %d, -: %d, +prop: %f, obj.: %f)" \
+            print("if %s, then prob. = %f (+: %d, -: %d, +prop: %f, obj.: %f)" \
                 % (ruleset[d_rule[i]], d_prob[i], d_pos[i], d_neg[i],
-                   d_pos_prop[i], d_obj[i])
+                   d_pos_prop[i], d_obj[i]))
         elif i < (len(d_rule)-1):
-            print "else if %s, then prob. = %f (+: %d, -: %d, +prop: %f, obj.: %f)" \
+            print("else if %s, then prob. = %f (+: %d, -: %d, +prop: %f, obj.: %f)" \
                 % (ruleset[d_rule[i]], d_prob[i], d_pos[i], d_neg[i],
-                   d_pos_prop[i], d_obj[i])
+                   d_pos_prop[i], d_obj[i]))
         else:
             assert d_rule[i] == 0
-            print "else prob. = %f (+: %d, -: %d, +prop: %f, obj.: %f)" \
-                % (d_prob[i], d_pos[i], d_neg[i], d_pos_prop[i], d_obj[i])
-    print "objective = %f" % L_d
+            print("else prob. = %f (+: %d, -: %d, +prop: %f, obj.: %f)" \
+                % (d_prob[i], d_pos[i], d_neg[i], d_pos_prop[i], d_obj[i]))
+    print("objective = %f" % L_d)
 
 def write_softFRL(fname, d_rule, d_prob, ruleset,
                   d_pos, d_neg, d_pos_prop, d_obj, L_d, **options):

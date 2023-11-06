@@ -7,8 +7,8 @@ import gmpy
 import numpy as np
 import copy
 
-from FRLutil import find_caught_instances, find_remain_instances
-from curiosity import compute_curiosity_softFRL
+from FRLOptimization.FRLutil import find_caught_instances, find_remain_instances
+from FRLOptimization.curiosity import compute_curiosity_softFRL
 
 def learn_softFRL(X_pos, X_neg, n, w, C, C1, prob_terminate, T, lmda):
     # initialize the current best rule list
@@ -28,7 +28,7 @@ def learn_softFRL(X_pos, X_neg, n, w, C, C1, prob_terminate, T, lmda):
     
     for t in range(T):
         if (t + 1) % 500 == 0:
-            print "building rule list %d" % (t + 1)
+            print("building rule list %d" % (t + 1))
         
         # available_antecedents does not include the default "null" rule
         available_antecedents = [j for j in range(1,len(X_pos))]

@@ -2,15 +2,17 @@
 # author: Chaofan Chen
 #
 from __future__ import division
-from data import load_data, load_labels
-from antecedents import mine_antecedents
-from FRL import learn_FRL
-from softFRL import learn_softFRL
-from display import display_rule_list, display_softFRL
+import os
+from FRLOptimization.data import load_data, load_labels
+from FRLOptimization.antecedents import mine_antecedents
+from FRLOptimization.FRL import learn_FRL
+from FRLOptimization.softFRL import learn_softFRL
+from FRLOptimization.display import display_rule_list, display_softFRL
 
 def main():
+    frloptim_path = os.getcwd() + "/lib/FRLOptimization/"
     dataset = "bank-full"
-    path = "datasets/" + dataset + "/all/"
+    path = frloptim_path + "datasets/" + dataset + "/all/"
     fname_data = path + dataset + "_all.X"
     fname_label = path + dataset + "_all.Y"
     
@@ -18,7 +20,7 @@ def main():
     Y = load_labels(fname_label)
     
     # mine rules
-    print "mining rules using FP-growth"
+    print("mining rules using FP-growth")
     minsupport = 10
     max_predicates_per_ant = 2
     X_pos,X_neg,nantecedents,antecedent_len,antecedent_set = \
@@ -41,23 +43,23 @@ def main():
     lmda = 0.8
     
     # train a falling rule list
-    print "running algorithm FRL on bank-full"
+    print("running algorithm FRL on bank-full")
     FRL_rule, FRL_prob, FRL_pos_cnt, FRL_neg_cnt, FRL_obj_per_rule, FRL_Ld, \
         FRL_Ld_over_iters, FRL_Ld_best_over_iters = \
         learn_FRL(X_pos, X_neg, n, w, C, prob_terminate, T_FRL, lmda)
     
-    print "FRL learned:"
+    print("FRL learned:")
     display_rule_list(FRL_rule, FRL_prob, antecedent_set, FRL_pos_cnt, FRL_neg_cnt,
                       FRL_obj_per_rule, FRL_Ld)
     
-    print "running algorithm softFRL on bank-full"
+    print("running algorithm softFRL on bank-full")
     softFRL_rule, softFRL_prob, softFRL_pos_cnt, softFRL_neg_cnt, \
         softFRL_pos_prop, softFRL_obj_per_rule, softFRL_Ld, \
         softFRL_Ld_over_iters, softFRL_Ld_best_over_iters = \
         learn_softFRL(X_pos, X_neg, n, w, C, C1, prob_terminate,
                       T_softFRL, lmda)
     
-    print "softFRL learned:"    
+    print("softFRL learned:") 
     display_softFRL(softFRL_rule, softFRL_prob, antecedent_set,
                     softFRL_pos_cnt, softFRL_neg_cnt, softFRL_pos_prop,
                     softFRL_obj_per_rule, softFRL_Ld)             

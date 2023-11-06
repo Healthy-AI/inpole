@@ -5,6 +5,8 @@ from fim import fpgrowth
 from collections import Counter
 import numpy as np
 
+# @TODO: Which evaluation measure should we use?
+
 def mine_antecedents(data,Y,minsupport,max_predicates_per_antecedent):
     # data is the training data
     # Y is the training labels: 1 for positive and 0 for negative
@@ -17,11 +19,11 @@ def mine_antecedents(data,Y,minsupport,max_predicates_per_antecedent):
     assert len(data_pos)+len(data_neg) == n
     
     antecedent_set = [r[0] for r in fpgrowth(data_pos, supp=minsupport,
-               zmax=max_predicates_per_antecedent)]
+               zmax=max_predicates_per_antecedent, eval='conf')]
     antecedent_set.extend([r[0] for r in fpgrowth(data_neg,supp=minsupport,
-                    zmax=max_predicates_per_antecedent)])
+                    zmax=max_predicates_per_antecedent, eval='conf')])
     antecedent_set = list(set(antecedent_set))
-    print len(antecedent_set),'rules mined'
+    print(len(antecedent_set), 'rules mined')
     # form the rule-versus-data set
     # X_pos[j] is the set of positive data points that satisfy rule j
     # X_neg[j] is the set of negative data points that satisfy rule j
