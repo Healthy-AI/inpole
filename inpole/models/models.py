@@ -29,6 +29,13 @@ import sklearn.metrics as metrics
 from sklearn.base import BaseEstimator
 from sklearn.utils.validation import check_is_fitted
 
+from FRLOptimization import (
+    mine_antecedents,
+    learn_FRL,
+    learn_softFRL,
+    display_rule_list
+)
+
 from .utils import plot_save_stats
 from ..utils import seed_torch, compute_squared_distances
 from ..tree import create_decision_stump, create_decision_tree
@@ -55,7 +62,8 @@ __all__ = [
     'RiskSlimClassifier',
     'FasterRiskClassifier',
     'MLPClassifier',
-    'RNNClassifier'
+    'RNNClassifier',
+    'FRLClassifier'
 ]
 
 
@@ -1208,3 +1216,107 @@ class FasterRiskClassifier(ClassifierMixin):
     
     def predict(self, X):
         return self.clf_.predict(X)
+
+
+class FRLClassifier(ClassifierMixin):
+    def __init__(
+        self,
+        minsupport=10,
+        max_predicates_per_ant=2,
+        w=7,
+        C=0.000001,
+        prob_terminate=0.01,
+        T=3000,
+        lambda_=0.8,
+        random_state=None  # For compatibility, currently unused
+    ):
+        self.minsupport = minsupport
+        self.max_predicates_per_ant = max_predicates_per_ant
+        self.w = w
+        self.C = C
+        self.prob_terminate = prob_terminate
+        self.T = T
+        self.lambda_ = lambda_
+        self.random_state = random_state
+    
+    def _encode_categorical(self, X, feature_names):
+        assert X.shape[1] == len(feature_names)
+        encoded_features = []
+        for i, feature_name in enumerate(feature_names):
+            e = [f'{feature_name}={x}' for x in X[:, i]]
+            encoded_features.append(e)
+        return np.column_stack(encoded_features)
+
+    def _encode_binned(self, X, bin_edges):
+        assert X.shape[1] == len(bin_edges)
+        encoded_features = []
+        for i, _bin_edges in enumerate(bin_edges):
+            indices = np.digitize(X[:, i], _bin_edges)
+            starts = np.take(_bin_edges, indices - 1)
+            ends = np.take(_bin_edges, indices)
+            e = [f'[{a}, {b})' for a, b in zip(starts, ends)]
+            encoded_features.append(e)
+        return np.column_stack(encoded_features)
+    
+    def _encode_features(self, preprocessor, Xt):
+        from sklearn.preprocessing import KBinsDiscretizer, OneHotEncoder
+
+        assert list(preprocessor.named_steps) == \
+            ['column_transformer', 'feature_selector']
+        assert preprocessor.named_steps['feature_selector'] is None
+        
+        assert np.array_equal(Xt, Xt.astype(bool))
+
+        column_transformer = preprocessor.named_steps['column_transformer']
+        transformers = column_transformer.transformers_
+        output_indices = column_transformer.output_indices_
+
+        assert all(
+            list(pipeline.named_steps) == ['imputer', 'encoder']
+            for _, pipeline, _ in transformers
+        )
+
+        X_encoded = []
+        
+        for transformer_name, pipeline, columns in transformers:
+            _output_indices = output_indices[transformer_name]
+            _Xt = Xt[:, _output_indices]
+            encoder = pipeline.steps[-1][1]
+            if encoder is None:
+                encoded = self._encode_categorical(_Xt, columns)
+                continue
+            _X = encoder.inverse_transform(_Xt)
+            if isinstance(encoder, KBinsDiscretizer):
+                encoded = self._encode_binned(_X, encoder.bin_edges_)
+            elif isinstance(encoder, OneHotEncoder):
+                encoded = self._encode_categorical(_X, columns)
+            else:
+                raise NotImplementedError
+            X_encoded.append(encoded)
+        
+        return np.column_stack(X_encoded)
+    
+    def fit(self, X, y, preprocessor):
+        X = self._encode_features(preprocessor, X)
+
+        X_pos, X_neg, _, _, antecedent_set = \
+            mine_antecedents(X, y, self.minsupport, self.max_predicates_per_ant)
+        
+        n = len(X)
+        FRL_rule, FRL_prob, FRL_pos_cnt, FRL_neg_cnt, FRL_obj_per_rule, \
+        FRL_Ld, FRL_Ld_over_iters, FRL_Ld_best_over_iters = learn_FRL(
+            X_pos, X_neg, n, self.w, self.C, self.prob_terminate, self.T, self.lambda_
+        )
+
+        display_rule_list(FRL_rule, FRL_prob, antecedent_set, FRL_pos_cnt, 
+                          FRL_neg_cnt, FRL_obj_per_rule, FRL_Ld)
+        
+        # @TODO: Extract the rules and use them in `predict_proba`.
+        
+        self.classes_ = np.unique(y)
+    
+    def predict_proba(self, X):
+        raise NotImplementedError
+    
+    def predict(self, X):
+        raise NotImplementedError

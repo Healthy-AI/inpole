@@ -23,7 +23,7 @@ from sklearn.compose import (
     make_column_selector,
     ColumnTransformer
 )
-from sklearn.pipeline import make_pipeline, Pipeline
+from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 
 from . import hparam_registry
@@ -34,19 +34,27 @@ __all__ = [
     'get_data_handler_class',
     'get_data_handler_from_config',
     'RAData',
-    'ADNIData'
+    'ADNIData',
+    'SwitchData'
 ]
 
 
 def get_data_handler_class(name):
-    if name not in globals():
-        raise NotImplementedError(f"Data not found: {name}.")
     return globals()[name]
 
 
 def get_data_handler_from_config(config):
-    data_handler_name = config['experiment'].upper() + 'Data'
-    return get_data_handler_class(data_handler_name)(**config['data'])
+    experiment = config['experiment']
+    try:
+        data_handler_name = experiment.upper() + 'Data'
+        data_handler_class = get_data_handler_class(data_handler_name)
+    except KeyError:
+        try:
+            data_handler_name = experiment.capitalize() + 'Data'
+            data_handler_class = get_data_handler_class(data_handler_name)
+        except KeyError:
+            raise ValueError(f"Unknown experiment: {experiment}.")
+    return data_handler_class(**config['data'])
 
 
 def _split_grouped_data(X, y, groups, valid_size, test_size, seed=None):
@@ -92,7 +100,7 @@ class Data(ABC):
         self.sample_size = sample_size
     
     @property
-    def alias(self):
+    def ALIAS(self):
         return type(self).__name__.replace('Data', '').lower()
 
     @property
@@ -107,13 +115,34 @@ class Data(ABC):
     
     def _get_preprocessor_params(self, hparams_seed):
         if hparams_seed == 0:
-            hparams = hparam_registry.default_hparams(self.alias)
+            hparams = hparam_registry.default_hparams(self.ALIAS)
         else:
-            hparams = hparam_registry.random_hparams(self.alias, hparams_seed)
+            hparams = hparam_registry.random_hparams(self.ALIAS, hparams_seed)
         return hparams
     
-    @abstractmethod
     def get_preprocessing_steps(self):
+        return (
+            ('column_transformer', self.get_column_transformer()),
+            ('feature_selector', self.get_feature_selector())
+        )
+
+    @abstractmethod
+    def get_column_transformer(self):
+        """Get the `ColumnTransformer` object that should be applied to the
+        data.
+        
+        Each transformer should be a pipeline with the following steps:
+        * 'imputer' (e.g., `SimpleImputer`)
+        * 'encoder' (e.g., `OneHotEncoder`).
+        
+        The name of the transformers is not important, i.e., the 
+        `ColumnTransformer` object may be created using the function
+        `make_column_transformer`.
+        """
+        pass
+
+    @abstractmethod
+    def get_feature_selector(self):
         pass
 
     def get_preprocessor(self, hparams_seed):
@@ -147,29 +176,31 @@ class RAData(Data):
         self.shift = shift
 
     def get_column_transformer(self):
-        # Numerical columns
+        # Numerical columns.
         numerical_column_selector = make_column_selector(dtype_include='float64')
-        numerical_column_pipeline = make_pipeline(
-            SimpleImputer(strategy='mean'),
-            KBinsDiscretizer(subsample=None)  # Need a seed if `subsample != None`!
-        )
+        numerical_column_steps = [
+            ('imputer', SimpleImputer(strategy='mean')),
+            ('encoder', KBinsDiscretizer(subsample=None))  # Pass a seed if `subsample != None`!
+        ]
+        numerical_column_pipeline = Pipeline(numerical_column_steps)
 
         # Categorical columns.
         categorical_column_selector = make_column_selector(dtype_include='category')
-        categorical_column_pipeline = make_pipeline(
-            SimpleImputer(strategy='most_frequent'),
-            OneHotEncoder(
-                drop='if_binary',
-                handle_unknown='ignore',
-                sparse_output=False
-            )
-        )
+        categorical_column_steps = [
+            ('imputer', SimpleImputer(strategy='most_frequent')),
+            ('encoder', OneHotEncoder(drop='if_binary', 
+                                      handle_unknown='ignore', 
+                                      sparse_output=False))
+        ]
+        categorical_column_pipeline = Pipeline(categorical_column_steps)
 
         # Boolean columns.
         boolean_column_selector = make_column_selector(dtype_include='boolean')
-        boolean_column_pipeline = make_pipeline(
-            SimpleImputer(strategy='most_frequent')
-        )
+        boolean_column_steps = [
+            ('imputer', SimpleImputer(strategy='most_frequent')),
+            ('encoder', None)
+        ]
+        boolean_column_pipeline = Pipeline(boolean_column_steps)
 
         return ColumnTransformer(
             transformers=[
@@ -182,12 +213,6 @@ class RAData(Data):
 
     def get_feature_selector(self):
         return None
-
-    def get_preprocessing_steps(self):
-        return (
-            ('column_transformer', self.get_column_transformer()),
-            ('feature_selector', self.get_feature_selector())
-        )
 
     def load(self):
         data = pd.read_pickle(self.path)
@@ -236,19 +261,18 @@ class ADNIData(Data):
     GROUP = 'RID'
 
     def get_column_transformer(self):
+        steps = [
+            ('imputer', None),
+            ('encoder', OneHotEncoder(handle_unknown='error', 
+                                      sparse_output=False))
+        ]
         return make_column_transformer(
-            (OneHotEncoder(handle_unknown='error', sparse_output=False), self.FEATURES),
+            (Pipeline(steps), self.FEATURES),
             remainder='passthrough'  # Passthrough the group column
         )
 
     def get_feature_selector(self):
         return None
-    
-    def get_preprocessing_steps(self):
-        return (
-            ('column_transformer', self.get_column_transformer()),
-            ('feature_selector', self.get_feature_selector())
-        )
     
     def load(self):
         data = pd.read_csv(self.path)
@@ -257,4 +281,18 @@ class ADNIData(Data):
         y = data[self.TREATMENT]
         groups = data[self.GROUP]
 
+        return X, y, groups
+
+
+class SwitchData(RAData):
+    def __init__(self, *, shift=None, **kwargs):
+        super().__init__(**kwargs)
+        self.shift = shift
+    
+    def load(self):
+        X, y, groups = super().load()
+        y_encoded = LabelEncoder().fit_transform(y)
+        y = pd.Series(y_encoded, index=y.index, name=y.name)
+        y = y.groupby(groups, group_keys=False).apply(pd.Series.diff).fillna(0)
+        y = (y != 0).astype(int)
         return X, y, groups

@@ -144,7 +144,7 @@ def create_pipeline(
     if estimator_name in ALL_NET_ESTIMATORS:
         # Infer input/output dimensions from training data.
         X_train, y_train = data_handler.get_splits()[0]
-        preprocessor.fit(X_train)
+        preprocessor.fit(X_train, y_train)
         input_dim = preprocessor.transform(X_train).shape[1] - 1
         output_dim = len(set(y_train))
     else:

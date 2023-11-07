@@ -4,7 +4,8 @@ from .data import *
 # Each experiment maps to a dataset.
 EXPERIMENTS = {
     'ra': RAData,
-    'adni': ADNIData
+    'adni': ADNIData,
+    'switch': SwitchData,
 }
 
 NET_ESTIMATORS = {
@@ -25,7 +26,8 @@ OTHER_ESTIMATORS = {
     'dummy': DummyClassifier,
     'rulefit': RuleFitClassifier,
     'riskslim': RiskSlimClassifier,
-    'fasterrisk': FasterRiskClassifier
+    'fasterrisk': FasterRiskClassifier,
+    'frl': FRLClassifier
 }
 
 ESTIMATORS = (
