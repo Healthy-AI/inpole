@@ -1247,14 +1247,15 @@ class FRLClassifier(ClassifierMixin):
             encoded_features.append(e)
         return np.column_stack(encoded_features)
 
-    def _encode_binned(self, X, bin_edges):
+    def _encode_binned(self, X, feature_names, bin_edges):
         assert X.shape[1] == len(bin_edges)
         encoded_features = []
-        for i, _bin_edges in enumerate(bin_edges):
+        iterable  = zip(feature_names, bin_edges)
+        for i, (feature_name, _bin_edges) in enumerate(iterable):
             indices = np.digitize(X[:, i], _bin_edges)
             starts = np.take(_bin_edges, indices - 1)
             ends = np.take(_bin_edges, indices)
-            e = [f'[{a}, {b})' for a, b in zip(starts, ends)]
+            e = [f'{feature_name}=[{a},{b})' for a, b in zip(starts, ends)]
             encoded_features.append(e)
         return np.column_stack(encoded_features)
     
@@ -1287,21 +1288,24 @@ class FRLClassifier(ClassifierMixin):
                 continue
             _X = encoder.inverse_transform(_Xt)
             if isinstance(encoder, KBinsDiscretizer):
-                encoded = self._encode_binned(_X, encoder.bin_edges_)
+                encoded = self._encode_binned(_X, columns, encoder.bin_edges_)
             elif isinstance(encoder, OneHotEncoder):
                 encoded = self._encode_categorical(_X, columns)
             else:
                 raise NotImplementedError
             X_encoded.append(encoded)
         
-        return np.column_stack(X_encoded)
+        return np.column_stack(X_encoded).tolist()
     
     def fit(self, X, y, preprocessor):
+        print("Encoding features.")
         X = self._encode_features(preprocessor, X)
 
+        print("Mining rules using FP-growth.")
         X_pos, X_neg, _, _, antecedent_set = \
             mine_antecedents(X, y, self.minsupport, self.max_predicates_per_ant)
-        
+
+        print("Running FRL algorithm.")        
         n = len(X)
         FRL_rule, FRL_prob, FRL_pos_cnt, FRL_neg_cnt, FRL_obj_per_rule, \
         FRL_Ld, FRL_Ld_over_iters, FRL_Ld_best_over_iters = learn_FRL(
