@@ -1114,21 +1114,11 @@ class RiskSlimClassifier(ClassifierMixin):
             'cplex_mipemphasis': 0
         }
     
-    def _prepare_data(self, X, y, feature_names, outcome_name):
+    def fit(self, X, y, feature_names, outcome_name):
         X = pd.DataFrame(X, columns=feature_names)
         y = pd.Series(y, name=outcome_name)
-        data = pd.concat([y, X], axis=1)
-
-        # Save data to CSV file.
-        data_path = os.path.join(
-            os.environ['TMPDIR'], 'data.csv'
-        )
-        data.to_csv(data_path, index=False)
-        return data_path
-
-    def fit(self, X, y, **kwargs):
-        data_path = self._prepare_data(X, y, **kwargs)
-        data = riskslim.load_data_from_csv(dataset_csv_file=data_path)
+        Xy = pd.concat([y, X], axis=1)
+        data = riskslim.utils.prepare_data(Xy)
         
         cofficient_set = riskslim.CoefficientSet(
             variable_names=data['variable_names'],
