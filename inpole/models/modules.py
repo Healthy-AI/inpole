@@ -99,9 +99,7 @@ class SDT(nn.Module):
 
         self._validate_parameters()
 
-        self.penalty_decay = [
-            2 ** (-d) for d in range(tree.depth)
-        ]
+        self.penalty_decay = [2 ** (-d) for d in range(tree.depth)]
 
         num_inner_nodes = len(tree.inner_nodes)
         num_leaf_nodes = len(tree.leaf_nodes)
@@ -125,8 +123,7 @@ class SDT(nn.Module):
         )
 
     def forward(self, X, predict_only=False):
-        path_probas, penalty, all_path_probas, other = \
-            self._forward(X)
+        path_probas, penalty, all_path_probas, other = self._forward(X)
 
         if self.prediction == 'max':
             masked_path_probas = self._mask_path_probas(path_probas)
@@ -233,19 +230,27 @@ class SDT(nn.Module):
         _mu = _mu.view(batch_size, num_nodes_in_layer)
         _path_prob = _path_prob.view(batch_size, num_nodes_in_next_layer)
 
-        for i in range(num_nodes_in_next_layer):
-            node_index = 2 ** (i_layer + 1) - 1 + i
-            if node_index not in self.tree.nodes:
+        for i in range(num_nodes_in_layer):
+            node_index = 2 ** i_layer - 1 + i
+            if not node_index in self.tree.inner_nodes:
+                continue
+            
+            # Find the tree index of the right child.
+            right_child_index = 2 * node_index + 2
+
+            # Convert the tree index to an index in 
+            # [0, `num_nodes_in_next_layer`).
+            i_rc = right_child_index - num_nodes_in_next_layer + 1
+
+            alpha = torch.sum(_path_prob[:, i_rc] * _mu[:, i], dim=0)
+            alpha /= torch.sum(_mu[:, i], dim=0)
+            _penalty = (torch.log(alpha) + torch.log(1 - alpha))
+
+            if _penalty.isnan() or _penalty.isinf():
+                # @TODO: Handle this case.
                 continue
 
-            alpha = torch.sum(
-                _path_prob[:, i] * _mu[:, i // 2],
-                dim=0
-            )
-            alpha /= torch.sum(_mu[:, i // 2], dim=0)
-
-            decay = self.penalty_decay[i_layer]
-            penalty -= 0.5 * decay * (torch.log(alpha) + torch.log(1 - alpha))
+            penalty -= 0.5 * self.penalty_decay[i_layer] * _penalty
 
         return penalty
     
@@ -273,8 +278,7 @@ class SDT(nn.Module):
 
     def _align_axes(self):
         self.inner_nodes = UnidimensionalInnerNodes(
-            self.inner_nodes[0].weight,
-            self.input_dim,
+            self.inner_nodes[0].weight, self.input_dim,
         )
     
     def _update_weights_after_pruning(

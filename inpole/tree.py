@@ -22,9 +22,7 @@ def create_decision_stump():
 
 class Tree:
     def __init__(self, nodes=[]):
-        self.nodes = {
-            node.index: node for node in nodes
-        }
+        self.nodes = {node.index: node for node in nodes}
         self._update()
 
     def split_node(self, index):
@@ -70,9 +68,7 @@ class Tree:
         for node in self.nodes.values():
             if len(node.children) == 1:
                 assert not node.is_leaf
-                removed_inner_node_indices.append(
-                    self.inner_node_index(node)
-                )
+                removed_inner_node_indices.append(self.inner_node_index(node))
 
         # Remove nodes and update indices and connections.
         sorted_nodes = list(self.sorted_nodes.items())
@@ -144,7 +140,8 @@ class Tree:
     
     def _update_sorted_inner_nodes(self):
         self.sorted_inner_nodes = {
-            index: node for index, node in self.sorted_nodes.items() if not node.is_leaf
+            index: node for index, node in self.sorted_nodes.items()
+            if not node.is_leaf
         }
     
     def _update_depth(self):

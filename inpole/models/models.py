@@ -151,7 +151,7 @@ class ClassifierMixin:
 
 
 class NeuralNetClassifier(ClassifierMixin, skorch.NeuralNetClassifier):
-    file_name_prefix_ = ''
+    prefix_ = ''
 
     def __init__(
         self,
@@ -311,11 +311,11 @@ class NeuralNetClassifier(ClassifierMixin, skorch.NeuralNetClassifier):
         super().on_train_end(net, X, y, **kwargs)
 
         losses = ['train_loss', 'valid_loss']
-        name = self.file_name_prefix_ + 'losses'
+        name = self.prefix_ + 'losses'
         plot_save_stats(self.history, losses, self.results_path, name, from_batches=False)
 
         scores = [f'train_{self.epoch_scoring}', f'valid_{self.epoch_scoring}']
-        name = self.file_name_prefix_ + self.epoch_scoring
+        name = self.prefix_ + self.epoch_scoring
         plot_save_stats(self.history, scores, self.results_path, name, from_batches=False)
 
     def collect_labels_from_dataset(self, dataset):
@@ -328,10 +328,10 @@ class NeuralNetClassifier(ClassifierMixin, skorch.NeuralNetClassifier):
     @contextmanager
     def _current_prefix(self, prefix):
         try:
-            self.file_name_prefix_ = prefix
+            self.prefix_ = prefix
             yield
         finally:
-            self.file_name_prefix_ = ''
+            self.prefix_ = ''
 
 
 class SoftDecisionTreeClassifier(NeuralNetClassifier):
@@ -716,7 +716,7 @@ class PrototypeClassifier(NeuralNetClassifier):
         super(PrototypeClassifier, self).on_train_end(net, X, y, **kwargs)
         for mode in ['train', 'valid']:
             loss_terms = [f'{mode}_{loss_term}' for loss_term in self.loss_terms]
-            name = self.file_name_prefix_ + mode + '_penalties'
+            name = self.prefix_ + mode + '_penalties'
             plot_save_stats(self.history, loss_terms, self.results_path, name)
 
 
@@ -780,12 +780,12 @@ class RDTClassifer(SoftDecisionTreeClassifier):
         super(RDTClassifer, self).on_train_end(net, X, y, **kwargs)
         for mode in ['train', 'valid']:
             probas = [f'{mode}_proba_{c}' for c in self.classes_]
-            name = self.file_name_prefix_ + mode + '_probas'
+            name = self.prefix_ + mode + '_probas'
             plot_save_stats(self.history, probas, self.results_path, name)
 
             penalties = ['evolution_penalty', 'behavior_penalty', 'splitting_penalty']
             penalties = [f'{mode}_{penalty}' for penalty in penalties]
-            name = self.file_name_prefix_ + mode + '_penalties'
+            name = self.prefix_ + mode + '_penalties'
             plot_save_stats(self.history, penalties, self.results_path, name)
 
 
