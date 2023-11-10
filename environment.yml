@@ -12,5 +12,10 @@ dependencies:
 - poetry=1.6.1
 - pytorch::pytorch=1.12.1
 - pip:
-  # Installation with Poetry fails.
+  # To install risk-slim in editable mode, first clone the repository from
+  # GitHub (https://github.com/antmats/risk-slim.git) to a directory at the
+  # same level as the inpole directory.
+  #
+  # If the installation fails, try running the follwing command:
+  # rm -r ../risk-slim/.eggs/
   - -e ../risk-slim
