@@ -92,7 +92,7 @@ python scripts/train_predict.py \
 
 ## Alvis usage
 
-On Alvis, the code can be run using a container. To create a container, copy the files [`inpole_env.def`](`inpole_env.def) and [`installer.properties`](installer.properties) to a storage directory with plenty of space. Upload the [CPLEX installer](https://www.ibm.com/account/reg/us-en/signup?formid=urx-20028) for Linux to the storage directory. Then, assuming the `inpole` repository is cloned to your home directory and you are located in the storage directory, type
+On Alvis, the code can be run using a container. To create a container, copy the files [`inpole_env.def`](inpole_env.def) and [`installer.properties`](installer.properties) to a storage directory with plenty of space. Upload the [CPLEX installer](https://www.ibm.com/account/reg/us-en/signup?formid=urx-20028) for Linux to the storage directory. Then, assuming the `inpole` repository is cloned to your home directory and you are located in the storage directory, type
 ```bash
 apptainer build --bind $HOME:/mnt inpole_env.sif inpole_env.def
 ```
@@ -119,7 +119,7 @@ The flag `--nv` ensures that GPU resources can be accessed from within the conta
 A parameter sweep can be performed using the script [`scripts/run_experiment.py`](scripts/run_experiment.py). Type `apptainer exec $container_path python scripts/run_experiment.py -h` for details. This script uses the `sbatch` command, which unfortunatelly is not available from within the container, so a separate environment is needed to launch the sweep:
 ```bash
 cd $HOME/inpole
-module purge && module load Python/3.10.8-GCCcore-12.2.0
+ml purge && ml Python/3.10.8-GCCcore-12.2.0
 virtualenv --system-site-packages sweep_env
 source sweep_env/bin/activate
 pip install --no-cache-dir --no-build-isolation amhelpers==0.5.1
