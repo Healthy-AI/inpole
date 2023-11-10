@@ -1,22 +1,25 @@
 # Interpretable Policy Learning
 
-This repository contains code to train and evaluate models for interpretably policy learning.
+This repository contains code to train and evaluate models for interpretable policy learning.
 
 ## Installation
 
-This package makes use of [risk-slim](https://github.com/ustunb/risk-slim), which in turn requires [CPLEX](https://www.ibm.com/products/ilog-cplex-optimization-studio). Install CPLEX by following the instructions [here](https://github.com/ustunb/risk-slim/blob/master/docs/cplex_instructions.md) (you can ignore step 4). Then, clone the [risk-slim](https://github.com/ustunb/risk-slim) repository to your local computer:
+This package makes use of [risk-slim](https://github.com/ustunb/risk-slim), which in turn requires [CPLEX](https://www.ibm.com/products/ilog-cplex-optimization-studio). Create an IBM account and install CPLEX by following [this link](https://www.ibm.com/account/reg/us-en/signup?formid=urx-20028). Then, clone a fork of the [risk-slim](https://github.com/antmats/risk-slim) repository to your local computer:
 ```bash
-$ git clone https://github.com/ustunb/risk-slim.git
+git clone https://github.com/antmats/risk-slim.git
 ```
+
+Another dependency is an algorithm for learning falling rule lists (FRL) implemented in the [FRLOptimization](https://github.com/cfchen-duke/FRLOptimization) repository. The FRL algorithm requires FP-growth, a program that finds frequent item sets using the FP-growth algorithm, which can be installed from [here](https://borgelt.net/fpgrowth.html).
 
 Now, install `inpole` by typing the following commands:
 ```bash
-$ git clone https://github.com/antmats/inpole.git
-$ cd inpole
-$ conda env create
-$ conda activate inpole_env
-$ poetry install
+git clone https://github.com/antmats/inpole.git
+cd inpole
+conda env create
+conda activate inpole_env
+poetry install
 ```
+If the installation fails, make sure that [GCC](https://gcc.gnu.org/) is installed on your computer.
 
 ## Models
 
@@ -27,9 +30,10 @@ The following models are currently supported:
 - recurrent prototype network (prosenet)
 - logistic regression (lr)
 - hard decision tree (dt)
-- [risk scores](https://github.com/ustunb/risk-slim/tree/master) (riskslim)
+- [risk scores](https://github.com/antmats/risk-slim) (riskslim)
 - [rule ensembles](https://github.com/christophM/rulefit/tree/master) (rulefit)
-- [fast risk scores](https://github.com/jiachangliu/FasterRisk/tree/main) (fasterrisk).
+- [fast risk scores](https://github.com/jiachangliu/FasterRisk/tree/main) (fasterrisk)
+- [falling rule lists](https://github.com/cfchen-duke/FRLOptimization/tree/master) (frl).
 
 ### Adding a new model
 
@@ -60,7 +64,8 @@ class MyModel(ClassifierMixin):
 
 The following datasets are currently supported:
 - rheumatoid arthritis (ra)
-- alzheimer's disease neuroimaging initiative (adni).
+- alzheimer's disease neuroimaging initiative (adni)
+- treatment switching in rheumatoid arthritis (switch).
 
 ### Adding a new dataset
 
@@ -79,33 +84,33 @@ Training and evaluation of a single model is performed using the script [`script
 
 Example:
 ```bash
-$ python scripts/train_predict.py \
-> --config_path configs/example_config.yaml \
-> --estimator sdt \
-> --new_out_dir
+python scripts/train_predict.py \
+    --config_path configs/example_config.yaml \
+    --estimator sdt \
+    --new_out_dir
 ```
 
 ## Alvis usage
 
-On Alvis, the code can be run using a container. To create a container, copy the file [`inpole_env.def`](`inpole_env.def) to a storage location with plenty of space. Then, assuming the `inpole` repository is cloned to your home directory and you are located in the storage directory, type
+On Alvis, the code can be run using a container. To create a container, copy the files [`inpole_env.def`](`inpole_env.def) and [`installer.properties`](installer.properties) to a storage directory with plenty of space. Upload the [CPLEX installer](https://www.ibm.com/account/reg/us-en/signup?formid=urx-20028) for Linux to the storage directory. Then, assuming the `inpole` repository is cloned to your home directory and you are located in the storage directory, type
 ```bash
-$ apptainer build --bind $HOME:/mnt inpole_env.sif inpole_env.def
+apptainer build --bind $HOME:/mnt inpole_env.sif inpole_env.def
 ```
 To run Python within the container, type
-```
-$ apptainer exec inpole_env.sif python --version
+```bash
+apptainer exec inpole_env.sif python --version
 ```
 
 Example of how to train and evaluate a single model on Alvis:
 ```bash
-$ container_path=/path/to/my/storage/inpole_env.sif
-$ account=my_project_name
-$ cd $HOME/inpole
-$ srun -A $account --gpus-per-node=T4:1 \
-> apptainer exec --nv $container_path python scripts/train_predict.py \
-> --config_path configs/example_config.yaml \
-> --estimator sdt \
-> --new_out_dir
+container_path=/path/to/my/storage/directory/inpole_env.sif
+account=my_project_name
+cd $HOME/inpole
+srun -A $account --gpus-per-node=T4:1 --pty bash
+apptainer exec --nv $container_path python scripts/train_predict.py \
+    --config_path configs/example_config.yaml \
+    --estimator sdt \
+    --new_out_dir
 ```
 The flag `--nv` ensures that GPU resources can be accessed from within the container.
 
@@ -126,19 +131,19 @@ Example of how to launch a sweep on Alvis:
 cd $HOME/inpole
 module purge && module load Python/3.10.8-GCCcore-12.2.0
 source sweep_env/bin/activate
-$ python scripts/run_experiment.py \
-> --config_path configs/example_config.yaml \
-> --estimators sdt rdt
-> --container_path $container_path
+python scripts/run_experiment.py \
+    --config_path configs/example_config.yaml \
+    --estimators sdt rdt
+    --container_path $container_path
 ```
 
 ### Using configuration files written for Alvis usage on your local computer
 
 To automatically convert pathnames on Alvis to pathnames on your local computer, type the following commands which assume that you are located in the `inpole` directory and that data are stored under `inpole/data` and results are saved under `inpole/results`:
 ```bash
-$ export LOCAL_HOME_PATH=$HOME
-$ export CLUSTER_PROJECT_PATH='/mimer/NOBACKUP/groups/inpole'
-$ export LOCAL_PROJECT_PATH=$PWD
+export LOCAL_HOME_PATH=$HOME
+export CLUSTER_PROJECT_PATH='/mimer/NOBACKUP/groups/inpole'
+export LOCAL_PROJECT_PATH=$PWD
 ```
 
 ### Launch a Jupyter notebook
