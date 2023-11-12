@@ -509,11 +509,11 @@ class RDT(SDT):
             observations_per_step.append(pred_observation)
 
             if pred_logits is not None:  # Ignore first step
-                # @TODO: Watch out for negative values!
                 reg2 += F.kl_div(
-                    F.softmax(pred_logits, dim=1),
-                    F.softmax(logits, dim=1),
-                    reduction='batchmean'
+                    F.log_softmax(pred_logits, dim=1),
+                    F.log_softmax(logits, dim=1),
+                    reduction='batchmean',
+                    log_target=True
                 )
             
             reg3 += penalty
