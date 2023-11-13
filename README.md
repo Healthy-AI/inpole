@@ -119,17 +119,18 @@ The flag `--nv` ensures that GPU resources can be accessed from within the conta
 A parameter sweep can be performed using the script [`scripts/run_experiment.py`](scripts/run_experiment.py). Type `apptainer exec $container_path python scripts/run_experiment.py -h` for details. This script uses the `sbatch` command, which unfortunatelly is not available from within the container, so a separate environment is needed to launch the sweep:
 ```bash
 cd $HOME/inpole
-ml purge && ml Python/3.10.8-GCCcore-12.2.0
+ml purge && ml Python/3.10.8-GCCcore-12.2.0 SciPy-bundle/2023.02-gfbf-2022b PyYAML/6.0-GCCcore-12.2.0
 virtualenv --system-site-packages sweep_env
 source sweep_env/bin/activate
-pip install --no-cache-dir --no-build-isolation amhelpers==0.5.1
+pip install --no-cache-dir --no-build-isolation gitpython~=3.1
+pip install --no-cache-dir --no-build-isolation --no-deps amhelpers==0.5.1
 pip install --no-cache-dir --no-build-isolation --no-deps -e .
 ```
 
 Example of how to launch a sweep on Alvis:
 ```bash
 cd $HOME/inpole
-module purge && module load Python/3.10.8-GCCcore-12.2.0
+ml purge && ml Python/3.10.8-GCCcore-12.2.0 SciPy-bundle/2023.02-gfbf-2022b PyYAML/6.0-GCCcore-12.2.0
 source sweep_env/bin/activate
 python scripts/run_experiment.py \
     --config_path configs/example_config.yaml \
