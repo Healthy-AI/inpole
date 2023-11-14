@@ -11,8 +11,9 @@ From: continuumio/miniconda3:latest
     ./cos_installer_preview-22.1.1.0.R0-M08SWML-linux-x86-64.bin \
         -f ./cos_installer.properties
 
-    # Install gcc, libgmp3-dev and rsync.
+    # Install gcc, graphviz, libgmp3-dev, and rsync.
     apt-get update && apt-get install -y gcc
+    apt-get install -y graphviz
     apt-get install -y libgmp3-dev
     apt-get install -y rsync
 
