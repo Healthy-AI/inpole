@@ -29,3 +29,32 @@ def compute_squared_distances(x1, x2):
     x2 = torch.cat([x2, x2_pad, x2_norm], dim=-1)
     
     return x1.matmul(x2.transpose(-2, -1))
+
+
+def merge_dicts(dicts):
+    """Merge dictionaries.
+
+    Parameters
+    ----------
+    dicts : list of dictionaries
+        All dictionaries should have identical keys (not checked).
+
+    Returns
+    -------
+    dict
+        A single dictionary where each key maps to a list of values from the
+        dictionaries in `dicts`.
+    """
+    if not isinstance(dicts, list):
+        raise ValueError(f"`dicts` must be a list, got {type(dicts).__name__}.")
+    
+    if len(dicts) == 0:
+        return {}
+
+    if not all(isinstance(d, dict) for d in dicts):
+        raise ValueError("All elements of `dicts` must be a dictionary.")
+
+    keys = dicts[0].keys()
+    values = [[d[k] for d in dicts] for k in keys]
+
+    return dict(zip(keys, values))
