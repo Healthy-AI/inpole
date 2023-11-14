@@ -1228,7 +1228,9 @@ class FRLClassifier(ClassifierMixin):
         self.T = T
         self.lambda_ = lambda_
         self.random_state = random_state
-    
+        self.rule_list = []
+        self.prob_list = []
+
     def _encode_categorical(self, X, feature_names):
         assert X.shape[1] == len(feature_names)
         encoded_features = []
@@ -1304,13 +1306,47 @@ class FRLClassifier(ClassifierMixin):
 
         display_rule_list(FRL_rule, FRL_prob, antecedent_set, FRL_pos_cnt, 
                           FRL_neg_cnt, FRL_obj_per_rule, FRL_Ld)
-        
-        # @TODO: Extract the rules and use them in `predict_proba`.
-        
         self.classes_ = np.unique(y)
-    
+        
+        # Extract rules from FRL
+        rule_list = []
+        prob_list = []
+        for i, rule_index in enumerate(FRL_rule):
+            rule = antecedent_set[rule_index]
+            rule_list.append(rule)
+            prob = FRL_prob[i]
+            prob_list.append(prob)
+
+        self.rule_list = rule_list
+        self.prob_list = prob_list
+        self.preprocessor = preprocessor
+
     def predict_proba(self, X):
-        raise NotImplementedError
-    
+        X = self._encode_features(self.preprocessor, X)
+        y_pred = np.zeros((len(X), 2))
+
+        for i, row in enumerate(X):
+            rule_index = self.check_rules(row, self.rule_list)
+            if rule_index is not None:
+                prob_1 = self.prob_list[rule_index]
+            else:
+                prob_1 = self.prob_list[-1]
+            prob_0 = 1-prob_1
+            y_pred[i] = [prob_0, prob_1]
+        return y_pred
+
     def predict(self, X):
-        raise NotImplementedError
+        y_prob = self.predict_proba(X)
+        return [1 if prob[1] > 0.5 else 0 for prob in y_prob]
+
+    def check_rules(self, row, rules):
+        row_set = set(row)
+        for index, rule in enumerate(rules):
+            if isinstance(rule, tuple):
+                if all(item in row_set for item in rule):
+                    return index
+            elif rule in row_set:
+                return index
+        return None
+
+
