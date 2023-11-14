@@ -1,14 +1,22 @@
+import os
+import warnings
+from pathlib import Path
 from datetime import timedelta
+from os.path import join
 
 import pandas as pd
 import numpy as np
+import colorcet as cc
 import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 from matplotlib import gridspec
-
+from seaborn._statistics import EstimateAggregator
 from sklearn.decomposition import PCA
+from amhelpers.config_parsing import load_config
 
+from inpole.pipeline import _get_estimator_params
+from inpole.utils import merge_dicts
 
 def visualize_encodings(encodings, prototype_indices, frac=0.1, 
                         annotations=None, figsize=(6,4)):
@@ -62,7 +70,12 @@ def visualize_encodings(encodings, prototype_indices, frac=0.1,
     return fig, ax
 
 
-def visualize_prototype_ra(X, prototype_index, color_mapper):
+def visualize_prototype_ra(X, prototype_index, color_mapper=None):
+    if color_mapper is None:
+        labels = X.therapy.cat.categories.tolist()
+        colors = sns.color_palette(cc.glasbey, n_colors=len(labels))
+        color_mapper = {t: c for t, c in zip(labels, colors)}
+
     pid = X.id.iat[prototype_index]
     x = X[X.id == pid]
     
@@ -119,4 +132,78 @@ def visualize_prototype_ra(X, prototype_index, color_mapper):
                loc='lower left', title='Therapy')
     
     return fig
+
+
+def get_score_table(scores, metric, subset='test', ci=95, n_boot=1000, seed=0,
+                    factor=1, precision=1):
+    estimator = next(c for c in scores.columns if c.startswith('estimator'))
+    g = scores[scores.subset==subset].groupby(estimator)
+    agg = EstimateAggregator('mean', ('ci', ci), n_boot=n_boot, seed=seed)
+    table = g.apply(agg, var=metric)
+    table = table * factor
+    return table.style.format(precision=precision)
+
+
+def _get_hparam_names(params):
+    hparams = merge_dicts(params)
+    hparams = {k: v for k, v in hparams.items() if len(set(v)) > 1}
+    hparams.pop('results_path', None)
+    hparams.pop('seed', None)
+    return list(hparams)
+
+
+def inspect_hyperparameters(experiment_path, estimator_name, metric='auc', 
+                            trials=None, **plot_kwargs):
+    # Get all model parameters and all model scores.
+    params, scores = [], []
     
+    sweep_path = join(experiment_path, 'sweep')
+
+    if trials is None:
+        # Get all trial directories.
+        trial_dirs = sorted(os.listdir(sweep_path))
+    else:
+        trial_dirs = [join(sweep_path, f'trial_{trial:02d}') for trial in trials]
+    
+    for trial_dir in trial_dirs:
+        trial_path = join(sweep_path, trial_dir)
+        
+        for d in Path(trial_path).iterdir():
+            exp = str(d).split('/')[-1]  # `exp` is on the form estimator_XX
+            n = exp.split('_')[0]  # Get the estimator name
+            
+            if n == estimator_name:
+                config_path = join(d, 'config.yaml')
+                _config = load_config(config_path)
+                _params = _get_estimator_params(_config, estimator_name)
+                params.append(_params)
+    
+                scores_path = join(d, 'scores.csv')
+                _scores = pd.read_csv(scores_path)
+                scores.append(_scores)
+
+    # Get hyperparameter names.
+    hparams = _get_hparam_names(params)
+
+    # Plot hyperparameter values against scores.
+    num_subplots = len(hparams)
+    _fig, axes = plt.subplots(num_subplots, 1, sharex=True, **plot_kwargs)
+    axes = axes.flatten()
+
+    num_candidates = len(params)
+    if num_candidates > 10:
+        colors = sns.color_palette(cc.glasbey, n_colors=num_candidates)
+    else:
+        colors = sns.color_palette('colorblind', n_colors=num_candidates)
+    
+    for ax, hparam in zip(axes, hparams):
+        ax.set_title(hparam)
+    
+    for _params, _scores, color in zip(params, scores, colors):
+        score = _scores[_scores.subset=='valid'][metric].item()
+        for ax, hparam in zip(axes, hparams):
+            value = _params[hparam]
+            try:
+                ax.scatter(score, value, c=color)
+            except ValueError:
+                warnings.warn(f"Failed to plot parameter value {value}.")
