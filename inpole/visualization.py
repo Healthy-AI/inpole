@@ -152,16 +152,14 @@ def _get_hparam_names(params):
     return list(hparams)
 
 
-def inspect_hyperparameters(experiment_path, estimator_name, metric='auc', 
-                            trials=None, **plot_kwargs):
-    # Get all model parameters and all model scores.
+def get_params_and_scores(experiment_path, estimator_name, trials=None):
     params, scores = [], []
     
     sweep_path = join(experiment_path, 'sweep')
 
     if trials is None:
         # Get all trial directories.
-        trial_dirs = sorted(os.listdir(sweep_path))
+        trial_dirs = os.listdir(sweep_path)
     else:
         trial_dirs = [join(sweep_path, f'trial_{trial:02d}') for trial in trials]
     
@@ -181,6 +179,14 @@ def inspect_hyperparameters(experiment_path, estimator_name, metric='auc',
                 scores_path = join(d, 'scores.csv')
                 _scores = pd.read_csv(scores_path)
                 scores.append(_scores)
+    
+    return params, scores
+
+
+def inspect_hyperparameters(experiment_path, estimator_name, metric='auc', 
+                            trials=None, **plot_kwargs):
+    # Get all parameters and scores.
+    params, scores = get_params_and_scores(experiment_path, estimator_name, trials)
 
     # Get hyperparameter names.
     hparams = _get_hparam_names(params)
