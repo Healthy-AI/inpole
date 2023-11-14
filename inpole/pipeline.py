@@ -1,6 +1,9 @@
 import copy
+from os.path import join
 
 import torch
+import joblib
+import pandas as pd
 import sklearn.pipeline as pipeline
 from sklearn.utils import _print_elapsed_time
 from amhelpers.amhelpers import seed_hash
@@ -178,3 +181,13 @@ def create_pipeline(
     ]
     return Pipeline(steps)
     
+
+def load_best_pipeline(experiment_path, trial, estimator_name):
+    scores_path = join(experiment_path, 'scores.csv')
+    scores = pd.read_csv(scores_path)
+    experiment = scores[
+        (scores.trial == trial) & (scores.estimator_name == estimator_name)
+    ].exp.iat[0]
+    results_path = join(experiment_path, 'sweep', f'trial_{trial:02d}', experiment)
+    pipeline_path = join(results_path, 'pipeline.pkl')
+    return joblib.load(pipeline_path)
