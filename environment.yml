@@ -12,10 +12,11 @@ dependencies:
 - poetry=1.6.1
 - pytorch::pytorch=1.12.1
 - pip:
-  # To install risk-slim in editable mode, first clone the repository from
-  # GitHub (https://github.com/antmats/risk-slim.git) to a directory at the
-  # same level as the inpole directory.
+  # To install risk-slim and aix360 in editable mode, first clone the 
+  # repositories from GitHub into the parent directory of the inpole project.
+  # See the README for more information.
   #
   # If the installation fails, try running the follwing command:
   # rm -r ../risk-slim/.eggs/
   - -e ../risk-slim
+  - -e ../AIX360[rbm]
