@@ -17,19 +17,21 @@ From: continuumio/miniconda3:latest
     apt-get install -y libgmp3-dev
     apt-get install -y rsync
 
-    # Clone the risk-slim and aix360 repositories.
-    git clone https://github.com/antmats/risk-slim.git
-    git clone https://github.com/Trusted-AI/AIX360
-
     # Install conda packages.
     rsync -r /mnt/inpole . --exclude='*_env'
     cd inpole
     . /opt/conda/etc/profile.d/conda.sh
     conda env create -f environment.yml
 
-    # Install other packages using Poetry.
+    # Activate environment.
     env_name=$(head -1 environment.yml | cut -d' ' -f2)
     conda activate $env_name
+
+    # Install risk-slim and aix360 using pip.
+    pip install -e git+https://github.com/antmats/risk-slim.git#egg=riskslim
+    pip install -e git+https://github.com/Trusted-AI/AIX360.git#egg=aix360[rbm]
+
+    # Install other packages using Poetry.
     poetry install --without dev
 
     # Install PyFIM.
@@ -44,5 +46,7 @@ From: continuumio/miniconda3:latest
     echo "conda activate $env_name" >> $SINGULARITY_ENVIRONMENT
 
 %environment
-    # Use the latest version of the inpole package.
-    export PYTHONPATH=/mnt/inpole:$PYTHONPATH
+    if [ -d '/mnt/inpole' ]
+    then
+        export PYTHONPATH=/mnt/inpole:$PYTHONPATH
+    fi
