@@ -4,25 +4,13 @@ This repository contains code to train and evaluate models for interpretable pol
 
 ## Installation
 
-This package makes use of [risk-slim](https://github.com/ustunb/risk-slim), which in turn requires [CPLEX](https://www.ibm.com/products/ilog-cplex-optimization-studio). Create an IBM account and install CPLEX by following [this link](https://www.ibm.com/account/reg/us-en/signup?formid=urx-20028). Then, clone a fork of the risk-slim repository to your local computer:
-```bash
-git clone https://github.com/antmats/risk-slim.git
-```
-
-In addition, this package depends on [AIX360](https://github.com/Trusted-AI/AIX360). Clone the latest version of the AIX360 repository to your local computer:
-```bash
-git clone https://github.com/Trusted-AI/AIX360.git
-```
+This package makes use of [risk-slim](https://github.com/ustunb/risk-slim), which in turn requires [CPLEX](https://www.ibm.com/products/ilog-cplex-optimization-studio). Create an IBM account and install CPLEX by following [this link](https://www.ibm.com/account/reg/us-en/signup?formid=urx-20028).
 
 Another dependency is an algorithm for learning falling rule lists (FRL) implemented in the [FRLOptimization](https://github.com/cfchen-duke/FRLOptimization) repository. The FRL algorithm requires FP-growth, a program that finds frequent item sets using the FP-growth algorithm, which can be installed from [here](https://borgelt.net/fpgrowth.html).
 
-Now, install `inpole` by typing the following commands:
+To install `inpole`, type 
 ```bash
-git clone https://github.com/antmats/inpole.git
-cd inpole
-conda env create
-conda activate inpole_env
-poetry install
+bash -l env_setup.sh
 ```
 If the installation fails, make sure that [GCC](https://gcc.gnu.org/) is installed on your computer.
 
@@ -97,9 +85,9 @@ python scripts/train_predict.py \
 
 ## Alvis usage
 
-On Alvis, the code can be run using a container. To create a container, copy the files [`inpole_env.def`](inpole_env.def) and [`installer.properties`](installer.properties) to a storage directory with plenty of space. Upload the [CPLEX installer](https://www.ibm.com/account/reg/us-en/signup?formid=urx-20028) for Linux to the storage directory. Then, assuming the `inpole` repository is cloned to your home directory and you are located in the storage directory, type
+On Alvis, the code can be run using a container. To create a container, copy the files [`container.def`](container.def) and [`cos_installer.properties`](cos_installer.properties) to a storage directory with plenty of space. Upload the [CPLEX installer](https://www.ibm.com/account/reg/us-en/signup?formid=urx-20028) for Linux to the storage directory. Then, assuming the `inpole` repository is cloned to your home directory and you are located in the storage directory, type
 ```bash
-apptainer build --bind $HOME:/mnt inpole_env.sif inpole_env.def
+apptainer build --bind $HOME:/mnt inpole_env.sif container.def
 ```
 To run Python within the container, type
 ```bash
@@ -112,7 +100,7 @@ container_path=/path/to/my/storage/directory/inpole_env.sif
 account=my_project_name
 cd $HOME/inpole
 srun -A $account --gpus-per-node=T4:1 --pty bash
-apptainer exec --bind $HOME:/mnt --nv $container_path python scripts/train_predict.py \
+apptainer exec --nv $container_path python scripts/train_predict.py \
     --config_path configs/example_config.yaml \
     --estimator sdt \
     --new_out_dir
@@ -160,6 +148,7 @@ module purge
 
 container_path=/path/to/my/storage/inpole_env.sif
 
+# Use a bind mount to make code changes immediately available in the notebook.
 apptainer exec --bind $HOME:/mnt --nv $container_path jupyter notebook --config="${CONFIG_FILE}"
 ```
 
