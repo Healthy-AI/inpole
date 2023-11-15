@@ -4,9 +4,14 @@ This repository contains code to train and evaluate models for interpretable pol
 
 ## Installation
 
-This package makes use of [risk-slim](https://github.com/ustunb/risk-slim), which in turn requires [CPLEX](https://www.ibm.com/products/ilog-cplex-optimization-studio). Create an IBM account and install CPLEX by following [this link](https://www.ibm.com/account/reg/us-en/signup?formid=urx-20028). Then, clone a fork of the [risk-slim](https://github.com/antmats/risk-slim) repository to your local computer:
+This package makes use of [risk-slim](https://github.com/ustunb/risk-slim), which in turn requires [CPLEX](https://www.ibm.com/products/ilog-cplex-optimization-studio). Create an IBM account and install CPLEX by following [this link](https://www.ibm.com/account/reg/us-en/signup?formid=urx-20028). Then, clone a fork of the risk-slim repository to your local computer:
 ```bash
 git clone https://github.com/antmats/risk-slim.git
+```
+
+In addition, this package depends on [AIX360](https://github.com/Trusted-AI/AIX360). Clone the latest version of the AIX360 repository to your local computer:
+```bash
+git clone https://github.com/Trusted-AI/AIX360.git
 ```
 
 Another dependency is an algorithm for learning falling rule lists (FRL) implemented in the [FRLOptimization](https://github.com/cfchen-duke/FRLOptimization) repository. The FRL algorithm requires FP-growth, a program that finds frequent item sets using the FP-growth algorithm, which can be installed from [here](https://borgelt.net/fpgrowth.html).
@@ -107,7 +112,7 @@ container_path=/path/to/my/storage/directory/inpole_env.sif
 account=my_project_name
 cd $HOME/inpole
 srun -A $account --gpus-per-node=T4:1 --pty bash
-apptainer exec --nv $container_path python scripts/train_predict.py \
+apptainer exec --bind $HOME:/mnt --nv $container_path python scripts/train_predict.py \
     --config_path configs/example_config.yaml \
     --estimator sdt \
     --new_out_dir
@@ -155,7 +160,7 @@ module purge
 
 container_path=/path/to/my/storage/inpole_env.sif
 
-apptainer exec --nv $container_path jupyter notebook --config="${CONFIG_FILE}"
+apptainer exec --bind $HOME:/mnt --nv $container_path jupyter notebook --config="${CONFIG_FILE}"
 ```
 
 Then, start a Jupyter notebook server on [Open OnDemand](https://portal.c3se.chalmers.se/public/root/) using the environment `~/portal/jupyter/inpole.sh`.
