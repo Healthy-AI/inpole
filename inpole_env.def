@@ -17,8 +17,9 @@ From: continuumio/miniconda3:latest
     apt-get install -y libgmp3-dev
     apt-get install -y rsync
 
-    # Clone the risk-slim repository.
+    # Clone the risk-slim and aix360 repositories.
     git clone https://github.com/antmats/risk-slim.git
+    git clone https://github.com/Trusted-AI/AIX360
 
     # Install conda packages.
     rsync -r /mnt/inpole . --exclude='*_env'
@@ -41,4 +42,7 @@ From: continuumio/miniconda3:latest
     # Activate the environment when the container is run.
     echo ". /opt/conda/etc/profile.d/conda.sh" >> $SINGULARITY_ENVIRONMENT
     echo "conda activate $env_name" >> $SINGULARITY_ENVIRONMENT
-    
+
+%environment
+    # Use the latest version of the inpole package.
+    export PYTHONPATH=/mnt/inpole:$PYTHONPATH
