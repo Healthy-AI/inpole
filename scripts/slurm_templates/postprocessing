@@ -15,5 +15,5 @@ rsync -r inpole $TMPDIR --exclude='*_env'
 cd $TMPDIR/inpole
 
 module purge
-apptainer exec --nv $container_path python scripts/collect_results.py \
+apptainer exec --bind $TMPDIR:/mnt --nv $container_path python scripts/collect_results.py \
   --experiment $experiment --experiment_path $experiment_path

@@ -23,7 +23,7 @@ rsync -r inpole $TMPDIR --exclude='*_env'
 cd $TMPDIR/inpole
 
 module purge
-apptainer exec --nv $container_path python scripts/train_predict.py \
+apptainer exec --bind $TMPDIR:/mnt --nv $container_path python scripts/train_predict.py \
   --config_path $config_path --estimator $estimator
 
 # Copy log file to experiment folder.
