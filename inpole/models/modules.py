@@ -33,7 +33,9 @@ class LinearFromWeights(nn.Linear):
         super(LinearFromWeights, self).__init__(
             in_features=weights.shape[1],
             out_features=weights.shape[0],
-            bias=False
+            bias=False,
+            device=weights.device,
+            dtype=weights.dtype
         )
         with torch.no_grad():
             self.weight.copy_(weights)
@@ -277,9 +279,10 @@ class SDT(nn.Module):
         return mask
 
     def _align_axes(self):
-        self.inner_nodes = UnidimensionalInnerNodes(
-            self.inner_nodes[0].weight, self.input_dim,
-        )
+        if not isinstance(self.inner_nodes, UnidimensionalInnerNodes):
+            self.inner_nodes = UnidimensionalInnerNodes(
+                self.inner_nodes[0].weight, self.input_dim,
+            )
     
     def _update_weights_after_pruning(
         self,
@@ -312,8 +315,7 @@ class SDT(nn.Module):
     def _perform_node_pruning(self, eliminate_node):
         node_indices_to_remove = np.flatnonzero(eliminate_node)
 
-        # @TODO: Handle this case although it should not
-        # happen in practice.
+        # @TODO: Handle this case although it should not happen in practice.
         for node in self.tree.inner_nodes.values():
             if node.index in node_indices_to_remove:
                 continue
@@ -355,7 +357,7 @@ class SDT(nn.Module):
             tree_aligned_removed_leaf_node_indices
         )
         
-    def _draw_tree(self, features, classes, path_probas=None, zmax=None, thresholds=None):
+    def _draw_tree(self, features, classes, edge_attrs=None):
         assert isinstance(self.inner_nodes, UnidimensionalInnerNodes)
     
         leaf_node_weights = self.leaf_nodes[0].weight.detach().cpu().numpy()
@@ -381,7 +383,7 @@ class SDT(nn.Module):
                 label = features[max_feature]
                 inner_node_labels[node.index] = label
             
-        return draw_tree(self.tree, inner_node_labels, leaf_node_labels)
+        return draw_tree(self.tree, inner_node_labels, leaf_node_labels, edge_attrs)
 
 
 class RDT(SDT):

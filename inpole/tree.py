@@ -299,7 +299,7 @@ def get_leaf_node_indices(depth, index):
     return result
 
 
-def draw_tree(tree, inner_node_labels=None, leaf_node_labels=None):
+def draw_tree(tree, inner_node_labels=None, leaf_node_labels=None, edge_attrs=None):
     graph = graphviz.Digraph()
 
     for node in tree.nodes.values():
@@ -315,10 +315,12 @@ def draw_tree(tree, inner_node_labels=None, leaf_node_labels=None):
             else:
                 label = str(node.index)
             shape = 'box'
-        #label += ' (%s)' % node.index
         graph.node(str(node.index), label, shape=shape)
         if node.parent is not None:
             label = 'Y' if node.parent.right_child == node else 'N'
-            graph.edge(str(node.parent.index), str(node.index), label=label)
+            edge_attr = edge_attrs[node.index] if edge_attrs is not None else {}
+            if edge_attr.get('label'):
+                label += '\n' + edge_attr.pop('label')
+            graph.edge(str(node.parent.index), str(node.index), label=label, **edge_attr)
         
     return graph

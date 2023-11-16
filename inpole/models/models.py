@@ -38,7 +38,11 @@ from FRLOptimization import (
 
 from .utils import plot_save_stats
 from ..utils import seed_torch, compute_squared_distances
-from ..tree import create_decision_stump, create_decision_tree
+from ..tree import (
+    create_decision_stump,
+    create_decision_tree,
+    get_node_indices_per_layer
+)
 from .modules import (
     PrototypeNetwork,
     NNEncoder,
@@ -559,19 +563,50 @@ class SoftDecisionTreeClassifier(NeuralNetClassifier):
         
         self.module_._perform_node_pruning(eliminate_node)
     
-    def save_tree(self, features, labels, dataset=None, suffix=''):
-        if dataset is not None:
-            # @TODO: Visualize patient trajectories.
-            iterator = self.get_iterator(dataset, training=False)
-            batch = next(iter(iterator))
-            step = self.validation_step(batch)
-            args = (
-                step['y_pred']['probas'][0],
-                *step['y_pred']['other']
-            )
-        else:
-            args = ()
-        graph = self.module_._draw_tree(features, labels, *args)
+    def draw_tree(
+        self,
+        features,
+        labels,
+        all_path_probas=None,
+        dataset=None,
+        index=None,
+        max_width=5
+    ):
+        if all_path_probas is None:
+            if dataset is None:
+                raise ValueError(
+                    "Input argument `dataset` must not be `None` when "
+                    "`all_path_probas=None`."
+                )
+            iterator = self.get_iterator(dataset, training=False)  # No shuffling!
+            all_path_probas = self._collect_all_path_probas(iterator)
+        
+        tree_depth = self.module_.tree.depth
+        node_indices_per_layer = get_node_indices_per_layer(tree_depth+1)
+
+        edge_attrs = {}
+        for i_layer, path_probas in enumerate(all_path_probas):
+            if i_layer == 0:
+                continue
+            node_indices = node_indices_per_layer[i_layer]
+            mean_path_probas = path_probas[index].mean(axis=0)
+            for i, p in zip(node_indices, mean_path_probas):
+                if not p.isnan():
+                    p = p.item()
+                    width = str(np.interp(p, [0, 1], [1, max_width]))
+                    style = '' if p > 0 else 'dashed'
+                    label = f'{100 * p:.1f}%'
+                    edge_attr = {
+                        'penwidth': width,
+                        'style': style,
+                        'label': label
+                    }
+                    edge_attrs[i] = edge_attr
+        
+        return self.module_._draw_tree(features, labels, edge_attrs=edge_attrs)
+    
+    def save_tree(self, features, labels, suffix=''):
+        grap = self.module_._draw_tree(features, labels)
         graph.render('tree%s' % suffix, self.results_path, view=False, format='png')
 
 
@@ -787,6 +822,29 @@ class RDTClassifer(SoftDecisionTreeClassifier):
             penalties = [f'{mode}_{penalty}' for penalty in penalties]
             name = self.prefix_ + mode + '_penalties'
             plot_save_stats(self.history, penalties, self.results_path, name)
+        
+    def draw_all_trees(self, features, labels, dataset, groups):
+        graphs = {}
+    
+        iterator = self.get_iterator(dataset, training=False)  # No shuffling!
+        all_path_probas = self._collect_all_path_probas(iterator)
+
+        n = len(groups)
+        index = pd.RangeIndex.from_range(range(n))
+        index_per_group = index.groupby(groups).values()
+        
+        num_time_steps = max(map(len, index_per_group))
+        for t in range(num_time_steps):
+            index_t = [v[t] for v in index_per_group if len(v) > t]
+            
+            graphs[t] = self.draw_tree(
+                features,
+                labels,
+                all_path_probas=all_path_probas,
+                index=index_t
+            )
+        
+        return graphs
 
 
 class LogisticRegression(ClassifierMixin, lm.LogisticRegression):
