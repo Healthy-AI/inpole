@@ -1,5 +1,7 @@
 import os
+
 import torch
+import pandas as pd
 
 
 def seed_torch(seed):
@@ -58,3 +60,13 @@ def merge_dicts(dicts):
     values = [[d[k] for d in dicts] for k in keys]
 
     return dict(zip(keys, values))
+
+
+def get_index_per_time_step(groups):
+    n = len(groups)
+    index = pd.RangeIndex.from_range(range(n))
+    index_per_group = index.groupby(groups).values()
+    num_time_steps = max(map(len, index_per_group))
+    for t in range(num_time_steps):
+        index_t = [v[t] for v in index_per_group if len(v) > t]
+        yield index_t

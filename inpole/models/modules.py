@@ -71,14 +71,13 @@ class UnidimensionalInnerNodes(nn.Module):
         thresholds = -(bh / wmax)
 
         # For each sample in the batch, compute
-        # zmax > - bh / wmax if wmax > 0
-        # zmax < - bh / wmax if wmax < 0
+        # zmax > -(bh / wmax) if wmax > 0
+        # zmax < -(bh / wmax) if wmax < 0
         condition = (wmax > 0).unsqueeze(0).expand_as(zmax)
         input = zmax > thresholds
         other = zmax < thresholds
         return (
             torch.where(condition, input, other).type(torch.float32),
-            zmax,
             thresholds
         )
 
@@ -125,7 +124,7 @@ class SDT(nn.Module):
         )
 
     def forward(self, X, predict_only=False):
-        path_probas, penalty, all_path_probas, other = self._forward(X)
+        path_probas, penalty, all_path_probas, thresholds = self._forward(X)
 
         if self.prediction == 'max':
             masked_path_probas = self._mask_path_probas(path_probas)
@@ -133,15 +132,12 @@ class SDT(nn.Module):
         elif self.prediction == 'mean':
             logits = self.leaf_nodes(path_probas)
 
-        if predict_only:
-            return {'predictions': (logits,)}
-        else:
-            return {
-                'probas': (path_probas, all_path_probas),
-                'penalties': (penalty,),
-                'predictions': (logits,),
-                'other': other
-            }
+        return {
+            'probas': (path_probas, all_path_probas),
+            'penalties': (penalty,),
+            'predictions': (logits,),
+            'other': (thresholds,)
+        }
 
     def _forward(self, X):
         device = X.device
@@ -149,11 +145,10 @@ class SDT(nn.Module):
         X = self._data_augment(X)
 
         if isinstance(self.inner_nodes, UnidimensionalInnerNodes):
-            path_probas, zmax, thresholds = self.inner_nodes(X)
+            path_probas, thresholds = self.inner_nodes(X)
         else:
             path_probas = self.inner_nodes(X)
             thresholds = torch.full_like(path_probas.detach(), np.nan)
-            zmax = thresholds.clone()
         
         path_probas = torch.unsqueeze(path_probas, dim=2)
         path_probas = torch.cat((1 - path_probas, path_probas), dim=2)
@@ -219,8 +214,10 @@ class SDT(nn.Module):
         
         if mu.shape[1] > len(self.tree.leaf_nodes):
             mu = mu[:, self.tree.bottom_layer_aligned_leaf_node_indices]
+        
+        all_path_probas = torch.cat(all_path_probas, dim=1)
 
-        return mu, penalty, all_path_probas, (zmax, thresholds)
+        return mu, penalty, all_path_probas, thresholds
         
     def _cal_penalty(self, i_layer, _mu, _path_prob):
         num_nodes_in_layer = 2 ** i_layer
@@ -357,16 +354,20 @@ class SDT(nn.Module):
             tree_aligned_removed_leaf_node_indices
         )
         
-    def _draw_tree(self, features, classes, edge_attrs=None):
+    def _draw_tree(self, features, classes, thresholds=None, edge_attrs=None):
         assert isinstance(self.inner_nodes, UnidimensionalInnerNodes)
     
         leaf_node_weights = self.leaf_nodes[0].weight.detach().cpu().numpy()
         leaf_node_probas = softmax(leaf_node_weights, axis=0)
         leaf_node_preds = np.argmax(leaf_node_weights, axis=0).astype(int)
         
-        w = torch.t(self.inner_nodes.weight)
+        w = torch.t(self.inner_nodes.weight).detach().cpu()
         _, _, wz = torch.split(w, self.inner_nodes._split_sizes, dim=0)
-        _, max_indices = torch.max(wz, dim=0)
+        wmax, max_indices = torch.max(wz, dim=0)
+
+        if thresholds is not None:
+            go_right = ((thresholds < 0) & (wmax > 0)) | ((thresholds > 1) & (wmax < 0))
+            go_left = ((thresholds < 0) & (wmax < 0)) | ((thresholds > 1) & (wmax > 0))
 
         inner_node_labels = {}
         leaf_node_labels = {}
@@ -380,7 +381,12 @@ class SDT(nn.Module):
             else:
                 index = self.tree.inner_node_index(node)
                 max_feature = max_indices[index]
-                label = features[max_feature]
+                if (thresholds is not None) and go_right[:, index].all():
+                    label = "Go right"
+                elif (thresholds is not None) and go_left[:, index].all():
+                    label = "Go left"
+                else:
+                    label = features[max_feature]
                 inner_node_labels[node.index] = label
             
         return draw_tree(self.tree, inner_node_labels, leaf_node_labels, edge_attrs)
@@ -459,7 +465,6 @@ class RDT(SDT):
         logits_per_step = []
         histories_per_step = []
         observations_per_step = []
-        zmax_per_step = []
         thresholds_per_step = []
 
         device = observations.device
@@ -486,18 +491,14 @@ class RDT(SDT):
             last_batch_size = batch_size
 
             if pred_observation is not None:  # Ignore first time step
-                reg1 += F.mse_loss(
-                    observation,
-                    pred_observation
-                )
+                reg1 += F.mse_loss(observation, pred_observation)
 
             input = torch.cat([history, observation], dim=1)
-            path_probas, penalty, all_path_probas, (zmax, thresholds) = \
+            path_probas, penalty, all_path_probas, thresholds = \
                 self._forward(input)
             
             path_probas_per_step.append(path_probas)
             all_path_probas_per_step.append(all_path_probas)
-            zmax_per_step.append(zmax)
             thresholds_per_step.append(thresholds)
 
             if self.prediction == 'max':
@@ -529,33 +530,25 @@ class RDT(SDT):
                 if self.prediction == 'max':
                     next_path_probas = self._mask_path_probas(next_path_probas)
                 pred_logits = self.leaf_nodes(next_path_probas)
-        
-        all_path_probas_per_step = list(zip(*all_path_probas_per_step))
-        
+                
         args = (batch_sizes, sorted_indices, unsorted_indices)
         path_probas = _concatenate_and_unpack(path_probas_per_step, *args)
-        all_path_probas = [
-            _concatenate_and_unpack(x, *args) for x in all_path_probas_per_step
-        ]
+        all_path_probas = _concatenate_and_unpack(all_path_probas_per_step, *args)
         logits =  _concatenate_and_unpack(logits_per_step, *args)
         histories =  _concatenate_and_unpack(histories_per_step, *args)
         observations = _concatenate_and_unpack(observations_per_step, *args)
-        zmax = _concatenate_and_unpack(zmax_per_step, *args)
         thresholds = _concatenate_and_unpack(thresholds_per_step, *args)
 
         probas = (path_probas, all_path_probas)
         penalties = (reg1, reg2, reg3)
         predictions = (logits, histories, observations)
-
-        if predict_only:
-            return {'predictions': predictions}
-        else:
-            return {
-                'probas': probas,
-                'penalties': penalties,
-                'predictions': predictions,
-                'other': (zmax, thresholds)
-            }
+        other = (thresholds,)
+        return {
+            'probas': probas,
+            'penalties': penalties,
+            'predictions': predictions,
+            'other': other
+        }
 
     def _align_axes(self):
         self.inner_nodes = UnidimensionalInnerNodes(
