@@ -68,9 +68,8 @@ def _hparams(estimator_name, experiment, seed):
         _hparam('max_offset', 50, lambda r: r.choice([50, 70, 90, 110, 130]))
         _hparam('w_pos', 1, lambda r: r.choice([3, 4, 5, 6, 7]))
 
-
     # =========================================================================
-    # Experiment-DEPENDENT parameters.
+    # Experiment-DEPENDENT parameters (RA/Switch).
     # =========================================================================
 
     if experiment in ['ra', 'switch'] and estimator_name not in OTHER_ESTIMATORS:
@@ -83,14 +82,18 @@ def _hparams(estimator_name, experiment, seed):
     
     if experiment == 'switch' and estimator_name in ['pronet', 'prosenet']:
         _hparam('module__num_prototypes', 4, lambda r: r.choice([2, 4, 6, 8, 10]))
-    
-    if experiment == 'adni' and estimator_name in ['pronet', 'prosenet']:
-        _hparam('module__num_prototypes', 10, lambda r: r.choice([10, 20, 30]))
+
+    # =========================================================================
+    # Experiment-DEPENDENT parameters (ADNI).
+    # =========================================================================
     
     if experiment == 'adni' and estimator_name not in OTHER_ESTIMATORS:
         _hparam('lr', 1.0e-3, lambda r: 10. ** r.choice([-3, -2]))
         _hparam('max_epochs', 20, lambda r: 20)
         _hparam('batch_size', 32, lambda r: r.choice([16, 32, 64]))
+
+    if experiment == 'adni' and estimator_name in ['pronet', 'prosenet']:
+        _hparam('module__num_prototypes', 4, lambda r: r.choice([2, 4, 8, 10]))
     
     return hparams
 
