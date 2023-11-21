@@ -73,7 +73,7 @@ class UnidimensionalInnerNodes(nn.Module):
         # For each sample in the batch, compute
         # zmax > -(bh / wmax) if wmax > 0
         # zmax < -(bh / wmax) if wmax < 0
-        condition = (wmax > 0).unsqueeze(0).expand_as(zmax)
+        condition = wmax > 0
         input = zmax > thresholds
         other = zmax < thresholds
         return (

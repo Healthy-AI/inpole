@@ -550,7 +550,6 @@ class SoftDecisionTreeClassifier(NeuralNetClassifier):
         self.module_._align_axes()
     
     def prune_tree(self, all_path_probas, pruning_threshold=0.05):
-        #_, all_path_probas, _, _ = self.forward(dataset)
         average_path_probas = all_path_probas.mean(dim=0)
         eliminate_node = (average_path_probas < pruning_threshold).tolist()
         self.module_._perform_node_pruning(eliminate_node)
@@ -561,18 +560,18 @@ class SoftDecisionTreeClassifier(NeuralNetClassifier):
         labels,
         all_path_probas=None,
         thresholds=None,
-        dataset=None,
+        X=None,
         index=None,
         max_width=5
     ):
         if all_path_probas is None:
-            if dataset is None:
+            if X is None:
                 raise ValueError(
-                    "Input argument `dataset` must not be `None` when "
+                    "Input argument `X` must not be `None` when "
                     "`all_path_probas=None`."
                 )
-            # Set `training=False` (default) to avoid shuffling.
-            _, all_path_probas, thresholds = self.forward(dataset, training=False)
+            # Avoid shuffling the data by setting `training=False`.
+            _, all_path_probas, thresholds = self.forward(X, training=False)
         
         tree_depth = self.module_.tree.depth
         node_indices_per_layer = get_node_indices_per_layer(tree_depth+1)
@@ -642,7 +641,7 @@ class PrototypeClassifier(NeuralNetClassifier):
         ]
 
     def _project_prototypes(self, X):
-        # Avoid shuffling the dataset by setting `training=False`.
+        # Avoid shuffling the data by setting `training=False`.
         _, similarities, encodings = self.forward(X, training=False)
         _, max_indices = torch.max(similarities, dim=0)
         projections = encodings[max_indices]
@@ -819,9 +818,9 @@ class RDTClassifer(SoftDecisionTreeClassifier):
             name = self.prefix_ + mode + '_penalties'
             plot_save_stats(self.history, penalties, self.results_path, name)
         
-    def draw_all_trees(self, features, labels, dataset, groups):    
-        # Set `training=False` (default) to avoid shuffling.
-        _, all_path_probas, thresholds = self.forward(dataset)
+    def draw_all_trees(self, features, labels, X, groups):    
+        # Avoid shuffling the data by setting `training=False`.
+        _, all_path_probas, thresholds = self.forward(X)
         
         graphs = []
         for index_per_time_step in get_index_per_time_step(groups):
