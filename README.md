@@ -6,7 +6,7 @@ This repository contains code to train and evaluate models for interpretable pol
 
 This package makes use of [risk-slim](https://github.com/ustunb/risk-slim), which in turn requires [CPLEX](https://www.ibm.com/products/ilog-cplex-optimization-studio). Create an IBM account and install CPLEX by following [this link](https://www.ibm.com/account/reg/us-en/signup?formid=urx-20028).
 
-Another dependency is an algorithm for learning falling rule lists (FRL) implemented in the [FRLOptimization](https://github.com/cfchen-duke/FRLOptimization) repository. The FRL algorithm requires FP-growth, a program that finds frequent item sets using the FP-growth algorithm, which can be installed from [here](https://borgelt.net/fpgrowth.html).
+Another dependency is an algorithm for learning falling rule lists (FRL) implemented in the [FRLOptimization](https://github.com/cfchen-duke/FRLOptimization) repository. The FRL algorithm requires FP-growth, a program that finds frequent item sets using the FP-growth algorithm and can be installed from [here](https://borgelt.net/fpgrowth.html).
 
 To install `inpole`, type 
 ```bash
@@ -85,7 +85,7 @@ python scripts/train_predict.py \
 
 ## Alvis usage
 
-On Alvis, the code can be run using a container. To create a container, copy the files [`container.def`](container.def) and [`cos_installer.properties`](cos_installer.properties) to a storage directory with plenty of space. Upload the [CPLEX installer](https://www.ibm.com/account/reg/us-en/signup?formid=urx-20028) for Linux to the storage directory. Then, assuming the `inpole` repository is cloned to your home directory and you are located in the storage directory, type
+On Alvis, the code can be run using a container. To create a container, copy the file [`container.def`](container.def) to a storage directory with plenty of space. Then, assuming the `inpole` repository is cloned to your home directory and you are located in the storage directory, type
 ```bash
 apptainer build --bind $HOME:/mnt inpole_env.sif container.def
 ```
@@ -94,11 +94,19 @@ To run Python within the container, type
 apptainer exec inpole_env.sif python --version
 ```
 
+To acess CPLEX from within the container, type
+```bash
+ml purge && ml CPLEX/22.1.1
+export APPTAINERENV_LD_LIBRARY_PATH=$LD_LIBRARY_PATH
+```
+
 Example of how to train and evaluate a single model on Alvis:
 ```bash
 container_path=/path/to/my/storage/directory/inpole_env.sif
 account=my_project_name
 cd $HOME/inpole
+ml purge && ml CPLEX/22.1.1
+export APPTAINERENV_LD_LIBRARY_PATH=$LD_LIBRARY_PATH
 srun -A $account --gpus-per-node=T4:1 --pty bash
 apptainer exec --nv $container_path python scripts/train_predict.py \
     --config_path configs/example_config.yaml \
@@ -142,9 +150,10 @@ export LOCAL_PROJECT_PATH=$PWD
 
 ### Launch a Jupyter notebook
 
-To launch a Jupyter notebook on Alvis, first crate a configuration file `inpole.sh` in `~/portal/jupyter/` and add the following lines:
+To launch a Jupyter notebook on Alvis, first create a configuration file `inpole.sh` in `~/portal/jupyter/` and add the following lines:
 ```sh
-module purge
+ml purge && ml CPLEX/22.1.1
+export APPTAINERENV_LD_LIBRARY_PATH=$LD_LIBRARY_PATH
 
 container_path=/path/to/my/storage/inpole_env.sif
 

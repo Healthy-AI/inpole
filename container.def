@@ -2,16 +2,7 @@ Bootstrap: docker
 
 From: continuumio/miniconda3:latest
 
-%files
-    cos_installer_preview-22.1.1.0.R0-M08SWML-linux-x86-64.bin
-    cos_installer.properties
-
 %post
-    # Install CPLEX Optimization Studio.
-    chmod +x ./cos_installer_preview-22.1.1.0.R0-M08SWML-linux-x86-64.bin
-    ./cos_installer_preview-22.1.1.0.R0-M08SWML-linux-x86-64.bin \
-        -f ./cos_installer.properties
-
     # Install gcc, graphviz, libgmp3-dev, and rsync.
     apt-get update && apt-get install -y gcc
     apt-get install -y graphviz
