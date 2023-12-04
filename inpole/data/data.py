@@ -3,6 +3,7 @@ Data handler for each experiment.
 """
 
 import re
+import copy
 from functools import partial
 from abc import ABC, abstractmethod
 
@@ -60,7 +61,6 @@ def get_data_handler_from_config(config):
 def shift_variable(data, groups, variable, period, fillna):
     g = data[variable].groupby(groups, group_keys=False)
     shifted = g.transform(pd.Series.shift, periods=period)
-    print(shifted)
     shifted = shifted.fillna(fillna)
     shifted.rename(f'{variable}_{period}', inplace=True)
     return shifted
@@ -281,8 +281,14 @@ class ADNIData(Data):
             ('encoder', OneHotEncoder(handle_unknown='error', 
                                       sparse_output=False))
         ]
+        transformer = Pipeline(steps)
+        columns = copy.deepcopy(self.FEATURES)
+        if self.periods is not None:
+            columns += [
+                f'{f}_{p}' for f in self.FEATURES for p in range(1, self.periods + 1)
+            ]
         return make_column_transformer(
-            (Pipeline(steps), self.FEATURES),
+            (transformer, columns),
             remainder='passthrough'  # Passthrough the group column
         )
 
