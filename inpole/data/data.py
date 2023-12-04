@@ -57,6 +57,15 @@ def get_data_handler_from_config(config):
     return data_handler_class(**config['data'])
 
 
+def shift_variable(data, groups, variable, period, fillna):
+    g = data[variable].groupby(groups, group_keys=False)
+    shifted = g.transform(pd.Series.shift, periods=period)
+    print(shifted)
+    shifted = shifted.fillna(fillna)
+    shifted.rename(f'{variable}_{period}', inplace=True)
+    return shifted
+
+
 def _split_grouped_data(X, y, groups, valid_size, test_size, seed=None):
     if isinstance(y, pd.Series):
         y = y.to_numpy()
@@ -260,6 +269,12 @@ class ADNIData(Data):
     TREATMENT = 'MRI_ordered'
     GROUP = 'RID'
 
+    def __init__(self, *, periods=None, **kwargs):
+        super().__init__(**kwargs)
+        if periods is not None:
+            assert isinstance(periods, int) and periods > 0
+        self.periods = periods
+
     def get_column_transformer(self):
         steps = [
             ('imputer', None),
@@ -280,6 +295,14 @@ class ADNIData(Data):
         X = data[self.FEATURES]
         y = data[self.TREATMENT]
         groups = data[self.GROUP]
+
+        if self.periods is not None:
+            for feature in self.FEATURES:
+                fillna = data[feature]
+                for period in range(1, self.periods + 1):
+                    s = shift_variable(X, groups, feature, period, fillna)
+                    X = pd.concat([X, s.to_frame()], axis=1)
+                    fillna = s.squeeze()
 
         return X, y, groups
 
