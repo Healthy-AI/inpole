@@ -87,11 +87,6 @@ def _create_estimator(
 ):
     params = _get_estimator_params(config, estimator_name, **kwargs)
 
-    if estimator_name in ALL_NET_ESTIMATORS:
-        # PyTorch's data loader does not allow the batch size to be of
-        # type numpy.int64.
-        params['batch_size'] = int(params['batch_size'])
-
     if estimator_name in NET_ESTIMATORS:
         return NET_ESTIMATORS[estimator_name](**params)
     

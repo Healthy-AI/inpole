@@ -18,7 +18,10 @@ def _hparams(estimator_name, experiment, seed):
     def _hparam(name, default_val, random_val_fn):
         assert(name not in hparams)
         random_state = np.random.RandomState(seed_hash(seed, name))
-        hparams[name] = (default_val, random_val_fn(random_state))
+        random_val = random_val_fn(random_state)
+        if np.issubdtype(type(random_val), np.integer):
+            random_val = int(random_val)
+        hparams[name] = (default_val, random_val)
 
     # =========================================================================
     # Experiment-INDEPENDENT parameters.
