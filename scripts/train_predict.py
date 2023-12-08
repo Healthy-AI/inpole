@@ -8,7 +8,6 @@ from amhelpers.amhelpers import create_results_dir_from_config
 
 from inpole import ESTIMATORS
 from inpole.train_predict import train, predict
-from inpole.data import get_data_handler_from_config
 
 
 if __name__ == '__main__':
