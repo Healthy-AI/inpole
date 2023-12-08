@@ -2,13 +2,13 @@
 
 [[package]]
 name = "amhelpers"
-version = "0.5.1"
+version = "0.5.2"
 description = "A collection of handy utilities."
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "amhelpers-0.5.1-py3-none-any.whl", hash = "sha256:00fd57fa3e9e90f25cf4aba1df1689d8d6a20619abb0b220f7232f9bec6e931a"},
-    {file = "amhelpers-0.5.1.tar.gz", hash = "sha256:83abd19690a4073dcf7884e578e06b983887e9f3d8a1d6334fc33eab3563a684"},
+    {file = "amhelpers-0.5.2-py3-none-any.whl", hash = "sha256:ba5d09aca1426af1782dda99ace0fb53157279ddebd37b0811a739d3ee76f857"},
+    {file = "amhelpers-0.5.2.tar.gz", hash = "sha256:9153fe24b7ea0d1d808f158e3a95488e42723ac9f19498fd729236acf8b503a1"},
 ]
 
 [package.dependencies]
@@ -16,7 +16,6 @@ gitpython = ">=3.1.32,<4.0.0"
 numpy = {version = ">=1.22.0", markers = "python_version >= \"3.9\" and python_version < \"4.0\""}
 pandas = ">=1.4.0"
 pyyaml = ">=6.0.0,<7.0.0"
-scikit-learn = ">=1.0.2"
 urllib3 = "<2.0.0"
 
 [[package]]
@@ -2921,4 +2920,4 @@ notebook = ">=4.4.1"
 [metadata]
 lock-version = "2.0"
 python-versions = "3.10.8"
-content-hash = "8015ee31b51287141714a8c3994a1a4aa9db354ddba70d4a1d1c18fd3ae1516b"
+content-hash = "792dedaba5f62fbbd8a7e112deab2f919308a7f4a2f6ff9c9e63a3aa146990e6"
