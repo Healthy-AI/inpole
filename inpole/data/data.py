@@ -19,11 +19,7 @@ from sklearn.preprocessing import (
     KBinsDiscretizer,
     LabelEncoder
 )
-from sklearn.compose import (
-    make_column_transformer,
-    make_column_selector,
-    ColumnTransformer
-)
+from sklearn.compose import make_column_selector, ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 
@@ -101,7 +97,7 @@ def _split_grouped_data(X, y, groups, valid_size, test_size, seed=None):
 
 
 class Data(ABC):
-    def __init__(self, path, valid_size, test_size, seed, sample_size=None):
+    def __init__(self, path, valid_size=0.2, test_size=0.2, seed=None, sample_size=None):
         self.path = path
         self.valid_size = valid_size
         self.test_size = test_size
@@ -154,7 +150,7 @@ class Data(ABC):
     def get_feature_selector(self):
         pass
 
-    def get_preprocessor(self, hparams_seed):
+    def get_preprocessor(self, hparams_seed=None):
         steps = self.get_preprocessing_steps()
         preprocessor = Pipeline(steps)
         params = self._get_preprocessor_params(hparams_seed)
@@ -262,33 +258,45 @@ class RAData(Data):
 
 
 class ADNIData(Data):
-    FEATURES = [
-        'CDRSB_cat',
-        'MRI_previous_outcome'
-    ]
     TREATMENT = 'MRI_ordered'
     GROUP = 'RID'
 
-    def __init__(self, *, periods=None, **kwargs):
+    def __init__(self, *, shift=None, periods=0, **kwargs):
         super().__init__(**kwargs)
-        if periods is not None:
-            assert isinstance(periods, int) and periods > 0
+        self.shift = shift
+        if not isinstance(periods, int):
+            try:
+                periods = int(periods)
+            except TypeError:
+                raise ValueError(
+                    "`periods` must be an integer, "
+                    f"got {type(periods).__name__}."
+                )
         self.periods = periods
 
     def get_column_transformer(self):
-        steps = [
+        # Numerical columns.
+        numerical_column_selector = make_column_selector(dtype_include='float64')
+        numerical_column_steps = [
+            ('imputer', None), ('encoder', KBinsDiscretizer(subsample=None))
+        ]
+        numerical_column_pipeline = Pipeline(numerical_column_steps)
+
+        # Categorical columns.
+        categorical_column_selector = make_column_selector(dtype_include='category')
+        categorical_column_steps = [
             ('imputer', None),
-            ('encoder', OneHotEncoder(handle_unknown='error', 
+            ('encoder', OneHotEncoder(drop='if_binary', 
+                                      handle_unknown='ignore', 
                                       sparse_output=False))
         ]
-        transformer = Pipeline(steps)
-        columns = copy.deepcopy(self.FEATURES)
-        if self.periods is not None:
-            columns += [
-                f'{f}_{p}' for f in self.FEATURES for p in range(1, self.periods + 1)
-            ]
-        return make_column_transformer(
-            (transformer, columns),
+        categorical_column_pipeline = Pipeline(categorical_column_steps)
+
+        return ColumnTransformer(
+            transformers=[
+                ('numerical_transformer', numerical_column_pipeline, numerical_column_selector),
+                ('categorical_transformer', categorical_column_pipeline, categorical_column_selector),
+            ],
             remainder='passthrough'  # Passthrough the group column
         )
 
@@ -296,17 +304,30 @@ class ADNIData(Data):
         return None
     
     def load(self):
-        data = pd.read_csv(self.path)
+        data = pd.read_csv(
+            self.path,
+            dtype={
+                'RID': 'object',
+                'CDRSB_cat': 'category',
+                'MRI_previous_outcome': 'category',
+                'MRI_ordered': 'int64',
+                'AGE': 'float64',
+                'PTGENDER': 'category',
+                'PTMARRY': 'category',
+                'PTEDUCAT': 'float64',
+                'APOE4': 'category'
+            }
+        )
 
-        X = data[self.FEATURES]
+        X = data.drop(columns=[self.TREATMENT, self.GROUP])
         y = data[self.TREATMENT]
         groups = data[self.GROUP]
 
-        if self.periods is not None:
-            for feature in self.FEATURES:
-                fillna = data[feature]
+        if (self.shift is not None) and (self.periods > 0):
+            for c in self.shift:
+                fillna = data[c]
                 for period in range(1, self.periods + 1):
-                    s = shift_variable(X, groups, feature, period, fillna)
+                    s = shift_variable(X, groups, c, period, fillna)
                     X = pd.concat([X, s.to_frame()], axis=1)
                     fillna = s.squeeze()
 
