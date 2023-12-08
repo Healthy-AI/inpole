@@ -32,9 +32,12 @@ if __name__ == '__main__':
     parser.add_argument('--account', type=str, default=ACCOUNT)
     parser.add_argument('--gpu', type=str, choices=['T4', 'V100', 'A40', 'A100'], default='A40')
     parser.add_argument('--container_path', type=str, default=CONTAINER_PATH)
+    parser.add_argument('--sweep_param', type=str)
+    parser.add_argument('--sweep_param_values', nargs='+')
+    parser.add_argument('--sweep_param_str', type=str)
     parser.add_argument('--dry_run', action='store_true')
     args = parser.parse_args()
-    
+
     config = load_config(args.config_path)
 
     sweep = Sweep(
@@ -43,6 +46,9 @@ if __name__ == '__main__':
         args.train_script,
         args.pre_script,
         args.post_script,
+        args.sweep_param,
+        args.sweep_param_values,
+        args.sweep_param_str,
         args.n_trials,
         args.n_hparams,
         args.include_default_hparams,
