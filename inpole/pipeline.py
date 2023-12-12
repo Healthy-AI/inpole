@@ -1,5 +1,6 @@
 import copy
 from os.path import join
+import os
 
 import torch
 import joblib
@@ -186,3 +187,18 @@ def load_best_pipeline(experiment_path, trial, estimator_name):
     results_path = join(experiment_path, 'sweep', f'trial_{trial:02d}', experiment)
     pipeline_path = join(results_path, 'pipeline.pkl')
     return joblib.load(pipeline_path)
+
+
+def load_experiment_pipeline(experiment_path, trial, estimator_name):
+    pipelines = {}
+    trial_path = join(experiment_path, 'sweep', f'trial_{trial:02d}')
+    if not os.path.exists(trial_path):
+        raise FileNotFoundError(f"No trial directory found for trial {trial}")
+    for experiment_dir in sorted(os.listdir(trial_path)):
+        if estimator_name in experiment_dir:
+            model_pipeline_path = join(trial_path, experiment_dir, 'pipeline.pkl')
+            if os.path.exists(model_pipeline_path):
+                pipelines[experiment_dir] = joblib.load(model_pipeline_path)
+    if not pipelines:
+        raise FileNotFoundError(f"No pipelines found for model '{estimator_name}' in trial {trial}")
+    return pipelines
