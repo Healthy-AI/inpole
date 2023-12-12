@@ -158,8 +158,8 @@ def get_params_and_scores(experiment_path, estimator_name, trials=None):
     sweep_path = join(experiment_path, 'sweep')
 
     if trials is None:
-        # Get all trial directories.
-        trial_dirs = os.listdir(sweep_path)
+        # Get all sorted trial directories.
+        trial_dirs = sorted(os.listdir(sweep_path))
     else:
         trial_dirs = [join(sweep_path, f'trial_{trial:02d}') for trial in trials]
     
