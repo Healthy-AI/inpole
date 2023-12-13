@@ -166,7 +166,7 @@ def get_params_and_scores(experiment_path, estimator_name, trials=None):
     for trial_dir in trial_dirs:
         trial_path = join(sweep_path, trial_dir)
         
-        for d in Path(trial_path).iterdir():
+        for d in sorted(Path(trial_path).iterdir()):
             exp = str(d).split('/')[-1]  # `exp` is on the form estimator_XX
             n = exp.split('_')[0]  # Get the estimator name
             
