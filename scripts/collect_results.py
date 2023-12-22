@@ -1,19 +1,29 @@
 import argparse
+from os.path import join
 from functools import partial 
 
 from amhelpers.sweep import Postprocessing
+from amhelpers.config_parsing import load_config
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--experiment', type=str, required=True)
     parser.add_argument('--experiment_path', type=str, required=True)
     args = parser.parse_args()
 
-    def score_orter(df, metric):
+    def score_sorter(df, metric):
         return df[df.subset == 'valid'][metric].item()
+    
+    config_path = join(args.experiment_path, 'default_config.yaml')
+    config = load_config(config_path)
 
-    sorter = partial(score_orter, metric='auc')
+    try:
+        sort_by = config['results']['sort_by']
+    except KeyError:
+        sort_by = 'auc'
+
+    sorter = partial(score_sorter, metric=sort_by)
     
     postprocessing = Postprocessing(args.experiment_path)
     postprocessing.collect_results(sorter)
+    postprocessing.remove_files()
