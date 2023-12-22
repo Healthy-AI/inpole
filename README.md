@@ -34,7 +34,7 @@ If you want to add a new model, please note the following:
 - All models should be defined in [`inpole/models/models.py`](inpole/models/models.py). 
 - Hyperparameters for all models should be specified in [`inpole/models/hparam_registry.py`](inpole/models/hparam_registry.py).
 - All models should be given an alias (in brackets above) and listed in [`inpole/__init__.py`](inpole/__init__.py).
-- All models should inherit from [`inpole.models.models.ClassifierMixin`](https://github.com/antmats/inpole/blob/main/inpole/models/models.py#L73) which enables evalutation with respect to several metrics (accuracy, AUC, ECE, SCE).
+- All models should inherit from [`inpole.models.models.ClassifierMixin`](https://github.com/antmats/inpole/blob/main/inpole/models/models.py#L73) which enables evaluation with respect to several metrics (accuracy, AUC, ECE, SCE).
 - All models should implement the functions `fit`, `predict_proba` and `predict` as shown in the example below.
 
 ```python
@@ -57,7 +57,7 @@ class MyModel(ClassifierMixin):
 
 The following datasets are currently supported:
 - rheumatoid arthritis (ra)
-- alzheimer's disease neuroimaging initiative (adni)
+- Alzheimer's disease neuroimaging initiative (adni)
 - treatment switching in rheumatoid arthritis (switch).
 
 ### Adding a new dataset
@@ -94,7 +94,7 @@ To run Python within the container, type
 apptainer exec inpole_env.sif python --version
 ```
 
-To acess CPLEX from within the container, type
+To access CPLEX from within the container, type
 ```bash
 ml purge && ml CPLEX/22.1.1
 export APPTAINERENV_LD_LIBRARY_PATH=$LD_LIBRARY_PATH
@@ -117,16 +117,18 @@ The flag `--nv` ensures that GPU resources can be accessed from within the conta
 
 ### Launching a sweep
 
-A parameter sweep can be performed using the script [`scripts/run_experiment.py`](scripts/run_experiment.py). Type `apptainer exec $container_path python scripts/run_experiment.py -h` for details. This script uses the `sbatch` command, which unfortunatelly is not available from within the container, so a separate environment is needed to launch the sweep:
+A parameter sweep can be performed using the script [`scripts/run_experiment.py`](scripts/run_experiment.py). Type `apptainer exec $container_path python scripts/run_experiment.py -h` for details. This script uses the `sbatch` command, which unfortunately is not available from within the container, so a separate environment is needed to launch a sweep:
 ```bash
 cd $HOME/inpole
 ml purge && ml Python/3.10.8-GCCcore-12.2.0 SciPy-bundle/2023.02-gfbf-2022b PyYAML/6.0-GCCcore-12.2.0
 virtualenv --system-site-packages sweep_env
 source sweep_env/bin/activate
 pip install --no-cache-dir --no-build-isolation gitpython~=3.1
-pip install --no-cache-dir --no-build-isolation --no-deps amhelpers==0.5.2
+pip install --no-cache-dir --no-build-isolation --no-deps amhelpers==0.5.4
 pip install --no-cache-dir --no-build-isolation --no-deps -e .
 ```
+
+By default, the script trains and evaluates 10 models with different hyperparameter choices for 5 different splits of the data. The number of hyperparameter choices and data splits can be controlled by the arguments `--n_hparams` and `--n_trials`, respectively. For each data split, the test performance (with respect to the metric(s) specified in the configuration file) for the model that performs best on the validation set is saved to a file `scores.csv` in the experiment folder. It is possible to repeat this process while changing an outer parameter using the arguments `--sweep_param` and `--sweep_param_values`. The value of `--sweep_param` should be a string that corresponds to a key in the configuration file; nested levels should be separated by "::". For example, to train a prototype model with a varying number of prototypes, say 5, 10 and 5, use `--sweep_param estimators::pronet::module__num_prototypes` and `sweep_param 5 10 15`.
 
 Example of how to launch a sweep on Alvis:
 ```bash
