@@ -19,6 +19,16 @@ ACCOUNT = 'NAISS2023-22-686'
 CONTAINER_PATH = '/mimer/NOBACKUP/groups/inpole/singularity/inpole_env.sif'
 
 
+def custom_type(value):
+    try:
+        return int(value)
+    except ValueError:
+        try:
+            return float(value)
+        except ValueError:
+            return value
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Run experiment.")
     parser.add_argument('--config_path', type=str, required=True)
@@ -33,7 +43,7 @@ if __name__ == '__main__':
     parser.add_argument('--gpu', type=str, choices=['T4', 'V100', 'A40', 'A100'], default='A40')
     parser.add_argument('--container_path', type=str, default=CONTAINER_PATH)
     parser.add_argument('--sweep_param', type=str)
-    parser.add_argument('--sweep_param_values', nargs='+')
+    parser.add_argument('--sweep_param_values', nargs='+', type=custom_type)
     parser.add_argument('--sweep_param_str', type=str)
     parser.add_argument('--dry_run', action='store_true')
     args = parser.parse_args()
