@@ -2,6 +2,7 @@ experiment: ra
 
 results:
   path: results/ra
+  sort_by: accuracy
 
 metrics:
 - accuracy
