@@ -15,7 +15,7 @@ from amhelpers.metrics import ece, sce
 
 import torch
 import torch.nn as nn
-from torch.nn.utils.rnn import PackedSequence
+from torch.nn.utils.rnn import PackedSequence, pad_packed_sequence
 
 import skorch
 import skorch.callbacks as cbs
@@ -32,7 +32,6 @@ from sklearn.utils.validation import check_is_fitted
 from FRLOptimization import (
     mine_antecedents,
     learn_FRL,
-    learn_softFRL,
     display_rule_list
 )
 
@@ -71,7 +70,9 @@ __all__ = [
     'FasterRiskClassifier',
     'MLPClassifier',
     'RNNClassifier',
-    'FRLClassifier'
+    'FRLClassifier',
+    'TruncatedRNNClassifier',
+    'TruncatedProSeNetClassifier'
 ]
 
 
@@ -962,6 +963,22 @@ class RNNClassifier(NeuralNetClassifier):
     
     def infer(self, x, **fit_params):
         return super().infer(x, **fit_params)[0]
+
+
+class TruncatedRNNClassifier(RNNClassifier):
+    def infer(self, x, **fit_params):
+        y_pred = super().infer(x, **fit_params)
+        _, lengths = pad_packed_sequence(x, batch_first=True)
+        index = np.cumsum(lengths) - 1
+        return y_pred[index]
+
+
+class TruncatedProSeNetClassifier(ProSeNetClassifier):
+    def infer(self, x, **fit_params):
+        y_pred = super().infer(x, **fit_params)
+        _, lengths = pad_packed_sequence(x, batch_first=True)
+        index = np.cumsum(lengths) - 1
+        return y_pred[index]
 
 
 class SwitchPropensityEstimator(ClassifierMixin, BaseEstimator):

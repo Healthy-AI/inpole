@@ -6,9 +6,7 @@ from .. import OTHER_ESTIMATORS
 
 # @TODO: Add hyperparameters for the following estimators and datasets:
 # - rulefit
-# - riskslim
 # - fasterrisk
-# - frl
 # - adni.
 
 
@@ -43,12 +41,12 @@ def _hparams(estimator_name, experiment, seed):
         _hparam('lambda_div', 1.0e-3, lambda r: 10. ** r.choice([-5, -4, -3, -2, -1]))
         
     if estimator_name in ['mlp', 'pronet']:
-        hidden_dims = np.array([(32,), (64,), (32, 32), (64, 64)], dtype=object)
+        hidden_dims = np.array([(16,), (32,), (64,), (16, 16), (32, 32), (64, 64)], dtype=object)
         _hparam('module__encoder__hidden_dims', (32,), lambda r: r.choice(hidden_dims))
-        _hparam('module__encoder__output_dim', 32, lambda r: r.choice([32, 64]))
+        _hparam('module__encoder__output_dim', 32, lambda r: r.choice([16, 32, 64]))
     
-    if estimator_name in ['rnn', 'prosenet']:
-        _hparam('module__encoder__output_dim', 32, lambda r: r.choice([32, 64]))
+    if estimator_name in ['rnn', 'prosenet', 'truncated_rnn', 'truncated_prosenet']:
+        _hparam('module__encoder__output_dim', 32, lambda r: r.choice([16, 32, 64]))
         _hparam('module__encoder__num_layers', 1, lambda r: r.choice([1, 2]))
     
     if estimator_name == 'lr':
@@ -95,8 +93,10 @@ def _hparams(estimator_name, experiment, seed):
         _hparam('max_epochs', 20, lambda r: 20)
         _hparam('batch_size', 32, lambda r: r.choice([16, 32, 64]))
 
-    if experiment == 'adni' and estimator_name in ['pronet', 'prosenet']:
-        _hparam('module__num_prototypes', 4, lambda r: r.choice([2, 4, 8, 10]))
+    if experiment == 'adni' and estimator_name in [
+        'pronet', 'prosenet', 'truncated_prosenet'
+    ]:
+        _hparam('module__num_prototypes', 4, lambda r: r.choice([2, 4, 6, 8, 10]))
     
     return hparams
 

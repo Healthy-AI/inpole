@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import MaxNLocator
 
-from ..data.utils import SequentialDataset
+from ..data.utils import SequentialDataset, TruncatedHistoryDataset
 
 
 def expects_groups(estimator):
@@ -13,7 +13,10 @@ def expects_groups(estimator):
         return all([expects_groups(e) for e in estimator.estimators])
     return (
         hasattr(estimator, 'dataset') and
-        estimator.dataset == SequentialDataset
+        (
+            estimator.dataset == SequentialDataset or
+            estimator.dataset == TruncatedHistoryDataset
+        )
     )
 
 

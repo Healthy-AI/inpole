@@ -13,7 +13,8 @@ from skorch.utils import to_numpy
 __all__ = [
     'pad_pack_sequences',
     'StandardDataset',
-    'SequentialDataset'
+    'SequentialDataset',
+    'TruncatedHistoryDataset'
 ]
 
 
@@ -27,14 +28,29 @@ def pad_pack_sequences(batch):
         lengths=lengths,
         enforce_sorted=False
     )
-    targets = torch.cat(targets, dim=0)
+    try:
+        targets = torch.cat(targets, dim=0)
+    except TypeError:
+        # When using a `TruncatedHistoryDataset`, the targets are
+        # one-dimensional.
+        targets = torch.tensor(targets)
+    except RuntimeError:
+        # If there are no targets, torch.tensor(0) is used as a replacement.
+        # We then need to stack instead of concatenating!
+        targets = torch.stack(targets, dim=0)
     return packed_padded_sequences, targets
+
+
+def _validate_dataset_inputs(X, y):
+    assert isinstance(X, np.ndarray)
+    if y is not None:
+        assert isinstance(y, np.ndarray)
 
 
 class StandardDataset(Dataset):
     def __init__(self, X, y=None):
-        if isinstance(X, pd.DataFrame):
-            X = X.values
+        super(Dataset, self).__init__()
+        _validate_dataset_inputs(X, y)
         self.X = X
         self.y = y
     
@@ -102,6 +118,29 @@ class SequentialDataset(Dataset):
 
     def __len__(self):
         return len(self.sequences)
+
+
+class TruncatedHistoryDataset(Dataset):
+    def __init__(self, X, y=None, periods=0):
+        super(Dataset, self).__init__()
+        _validate_dataset_inputs(X, y)
+        self.X, self.y = X, y
+        self.groups = X[:, -1]
+        X = X[:, :-1].astype(np.float32)
+        self.sequences = pd.DataFrame(X).groupby(by=self.groups)
+        self.periods = periods
+        print(periods)
+    
+    def __getitem__(self, i):
+        group = self.groups[i]
+        Xi = self.sequences.get_group(group)
+        Xi = Xi.loc[i-self.periods:i]
+        Xi = torch.from_numpy(Xi.values)
+        yi = self.y[i] if self.y is not None else torch.tensor(0)
+        return Xi, yi
+    
+    def __len__(self):
+        return len(self.X)
 
 
 class ValidSplit(skorch.dataset.ValidSplit):

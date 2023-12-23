@@ -43,13 +43,6 @@ _default_net_params = {
 }
 
 
-_recurrent_net_params = {
-    'iterator_train__collate_fn': pad_pack_sequences,
-    'iterator_valid__collate_fn': pad_pack_sequences,
-    'dataset': SequentialDataset
-}
-
-
 def _get_estimator_params(config, estimator_name, input_dim=None, output_dim=None):
     experiment = config['experiment']
     hparams_seed = config['hparams']['seed']
@@ -92,7 +85,13 @@ def _create_estimator(
         return NET_ESTIMATORS[estimator_name](**params)
     
     if estimator_name in RECURRENT_NET_ESTIMATORS:
-        params.update(_recurrent_net_params)
+        if estimator_name.startswith('truncated'):
+            params['dataset'] = TruncatedHistoryDataset
+            params['dataset__periods'] = config['data']['periods']
+        else:
+            params['dataset'] = SequentialDataset
+        params['iterator_train__collate_fn'] = pad_pack_sequences
+        params['iterator_valid__collate_fn'] = pad_pack_sequences
         return RECURRENT_NET_ESTIMATORS[estimator_name](**params)
     
     if estimator_name in OTHER_ESTIMATORS:
@@ -178,13 +177,26 @@ def create_pipeline(
     return Pipeline(steps)
     
 
-def load_best_pipeline(experiment_path, trial, estimator_name):
+def load_best_pipeline(
+    experiment_path,
+    trial,
+    estimator_name,
+    sweep_parameter_value=None
+):
     scores_path = join(experiment_path, 'scores.csv')
     scores = pd.read_csv(scores_path)
-    experiment = scores[
-        (scores.trial == trial) & (scores.estimator_name == estimator_name)
-    ].exp.iat[0]
-    results_path = join(experiment_path, 'sweep', f'trial_{trial:02d}', experiment)
+    if sweep_parameter_value is None:
+        sweep = 'sweep'
+        mask = (scores.trial == trial) & \
+            (scores.estimator_name == estimator_name)
+    else:
+        sweep_parameter = scores.columns[0]
+        sweep = f'sweep_{sweep_parameter}_{sweep_parameter_value}'
+        mask = (scores[sweep_parameter] == sweep_parameter_value) & \
+            (scores.trial == trial) & \
+            (scores.estimator_name == estimator_name)
+    experiment = scores[mask].exp.iat[0]
+    results_path = join(experiment_path, sweep, f'trial_{trial:02d}', experiment)
     pipeline_path = join(results_path, 'pipeline.pkl')
     return joblib.load(pipeline_path)
 
