@@ -13,3 +13,7 @@ __pycache__/
 
 # Mac OS
 .DS_Store
+
+# Editable installs
+/lib/aix360
+/lib/riskslim
