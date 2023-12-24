@@ -1,6 +1,6 @@
 import copy
-from os.path import join
 import os
+from os.path import join
 
 import torch
 import joblib
@@ -142,8 +142,11 @@ def create_pipeline(
     if estimator_name in ALL_NET_ESTIMATORS:
         # Infer input/output dimensions from training data.
         X_train, y_train = data_handler.get_splits()[0]
+        if estimator_name.startswith('truncated'):
+            c_shifted = get_shifted_column_names(X_train)
+            X_train = X_train.drop(columns=c_shifted)
         preprocessor.fit(X_train, y_train)
-        input_dim = preprocessor.transform(X_train).shape[1] - 1
+        input_dim = len(preprocessor.get_feature_names_out()) - 1
         output_dim = len(set(y_train))
     else:
         input_dim = output_dim = None
@@ -170,10 +173,7 @@ def create_pipeline(
             output_dim=output_dim
         )
 
-    steps = [
-        ('preprocessor', preprocessor),
-        ('estimator', estimator)
-    ]
+    steps = [('preprocessor', preprocessor), ('estimator', estimator)]
     return Pipeline(steps)
     
 

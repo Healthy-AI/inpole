@@ -25,13 +25,13 @@ def _hparams(estimator_name, experiment, seed):
     # Experiment-INDEPENDENT parameters.
     # =========================================================================
     
-    if estimator_name in ['sdt', 'rdt']:
+    if estimator_name in ['sdt', 'rdt', 'truncated_rdt']:
         _hparam('initial_depth', 2, lambda r: r.choice([1, 2]))
         _hparam('lambda_', 1.0e-3, lambda r: 10. ** r.choice([-3, -2, -1]))
         _hparam('module__prediction', 'max', lambda r: r.choice(['max', 'mean']))
         _hparam('max_depth', 3, lambda r: r.choice([3, 4, 5]))
     
-    if estimator_name == 'rdt':
+    if estimator_name in ['rdt', 'truncated_rdt']:
         _hparam('delta1', 1.0e-3, lambda r: 10. ** r.choice([-3, -2, -1]))
         _hparam('delta2', 1.0e-3, lambda r: 10. ** r.choice([-3, -2, -1]))
         _hparam('module__hidden_dim', 10, lambda r: r.choice([5, 10, 15, 20]))

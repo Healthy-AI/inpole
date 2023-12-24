@@ -11,6 +11,7 @@ from .models import (
     FRLClassifier
 )
 from .data.data import get_data_handler_from_config
+from .data.utils import get_shifted_column_names
 from .pipeline import create_pipeline
 from . import NET_ESTIMATORS, RECURRENT_NET_ESTIMATORS
 
@@ -72,7 +73,12 @@ def train(config, estimator_name):
     X_train, y_train = data_train
     X_valid, y_valid = data_valid
 
-    if not expects_groups(estimator):
+    if expects_groups(estimator):
+        # Remove "_1" features.
+        c_shifted = get_shifted_column_names(X_train)
+        X_train = X_train.drop(columns=c_shifted)
+        X_valid = X_valid.drop(columns=c_shifted)
+    else:
         X_train = X_train.drop(columns=data_handler.GROUP)
         X_valid = X_valid.drop(columns=data_handler.GROUP)
 
@@ -142,8 +148,12 @@ def predict(
     elif subset == 'test':
         X, y = data_test
     
-    if not expects_groups(pipeline[-1]):
-        X = X.drop(columns=data_handler.GROUP)
+    if expects_groups(pipeline[-1]):
+        # Remove "_1" features.
+        c_shifted = get_shifted_column_names(X)
+        X = X.drop(columns=c_shifted)
+    else:
+       X = X.drop(columns=data_handler.GROUP)
 
     metrics = [
         (metric, {}) if isinstance(metric, str) else tuple(*metric.items())

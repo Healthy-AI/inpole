@@ -1,3 +1,5 @@
+import re
+
 import torch
 from torch.utils.data import Dataset
 from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence
@@ -11,11 +13,17 @@ from skorch.utils import to_numpy
 
 
 __all__ = [
+    'get_shifted_column_names',
     'pad_pack_sequences',
     'StandardDataset',
     'SequentialDataset',
     'TruncatedHistoryDataset'
 ]
+
+
+def get_shifted_column_names(X):
+    pattern = re.compile(r'_[1-9]\d*$')
+    return [c for c in X.columns if pattern.search(c)]
 
 
 def pad_pack_sequences(batch):
@@ -129,7 +137,6 @@ class TruncatedHistoryDataset(Dataset):
         X = X[:, :-1].astype(np.float32)
         self.sequences = pd.DataFrame(X).groupby(by=self.groups)
         self.periods = periods
-        print(periods)
     
     def __getitem__(self, i):
         group = self.groups[i]

@@ -72,7 +72,8 @@ __all__ = [
     'RNNClassifier',
     'FRLClassifier',
     'TruncatedRNNClassifier',
-    'TruncatedProSeNetClassifier'
+    'TruncatedProSeNetClassifier',
+    'TruncatedRDTClassifier'
 ]
 
 
@@ -975,10 +976,27 @@ class TruncatedRNNClassifier(RNNClassifier):
 
 class TruncatedProSeNetClassifier(ProSeNetClassifier):
     def infer(self, x, **fit_params):
+        outputs, similarities, encodings = super().infer(x, **fit_params)
+        _, lengths = pad_packed_sequence(x, batch_first=True)
+        index = np.cumsum(lengths) - 1
+        return outputs[index], similarities[index], encodings[index]
+
+
+class TruncatedRDTClassifier(RDTClassifer):
+    def infer(self, x, **fit_params):
         y_pred = super().infer(x, **fit_params)
         _, lengths = pad_packed_sequence(x, batch_first=True)
         index = np.cumsum(lengths) - 1
-        return y_pred[index]
+        y_pred_out = {}
+        for key, values in y_pred.items():
+            temp = []
+            for value in values:
+                if value.ndim > 0:
+                   temp.append(value[index])
+                else:
+                    temp.append(value)
+            y_pred_out[key] = tuple(temp)
+        return y_pred_out
 
 
 class SwitchPropensityEstimator(ClassifierMixin, BaseEstimator):
@@ -1413,5 +1431,3 @@ class FRLClassifier(ClassifierMixin):
             elif rule in row_set:
                 return index
         return None
-
-
