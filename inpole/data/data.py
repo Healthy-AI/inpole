@@ -2,25 +2,26 @@
 Data handler for each experiment.
 """
 
-import re
-import copy
-from functools import partial
 from abc import ABC, abstractmethod
 
 import numpy as np
 import pandas as pd
-#from scipy.stats import rankdata
+from scipy.stats import rankdata
 
 from sklearn.model_selection import GroupShuffleSplit
 from sklearn.preprocessing import (
-    #FunctionTransformer,
-    #StandardScaler,
+    FunctionTransformer,
+    StandardScaler,
     OneHotEncoder,
     KBinsDiscretizer,
     LabelEncoder
 )
-from sklearn.compose import make_column_selector, ColumnTransformer
-from sklearn.pipeline import Pipeline
+from sklearn.compose import (
+    make_column_selector,
+    ColumnTransformer,
+    make_column_transformer
+)
+from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.impute import SimpleImputer
 
 from . import hparam_registry
@@ -32,7 +33,8 @@ __all__ = [
     'get_data_handler_from_config',
     'RAData',
     'ADNIData',
-    'SwitchData'
+    'SwitchData',
+    'SepsisData'
 ]
 
 
@@ -54,12 +56,40 @@ def get_data_handler_from_config(config):
     return data_handler_class(**config['data'])
 
 
-def shift_variable(data, groups, variable, period, fillna):
-    g = data[variable].groupby(groups, group_keys=False)
-    shifted = g.transform(pd.Series.shift, periods=period)
+def shift_variable(grouped, variable, period, fillna):
+    shifted = grouped.shift(periods=period)
     shifted = shifted.fillna(fillna)
     shifted.rename(f'{variable}_{period}', inplace=True)
     return shifted
+
+
+def discretize_doses(doses, num_levels):
+    """Discretize continuous doses into `num_levels` levels.
+
+    Parameters
+    ----------
+    doses : DataFrame of shape (n_samples,)
+        Raw data.
+
+    Returns
+    -------
+    discrete_doses : NumPy array of shape (n_samples,)
+        Discrete doses (values between 0 and `num_levels-1`).
+    """
+    discrete_doses = np.zeros_like(doses)  # 0 is default (zero dose)
+    is_nonzero = doses > 0
+    ranked_nonzero_doses = rankdata(doses[is_nonzero]) / np.sum(is_nonzero)
+    discrete_nonzero_doses = np.digitize(
+        ranked_nonzero_doses,
+        bins=np.linspace(0, 1, num=num_levels),
+        right=True
+    )
+    discrete_doses[is_nonzero] = discrete_nonzero_doses
+    return discrete_doses
+
+
+def _add_log(x):
+    return np.log(0.1 + x)
 
 
 def _split_grouped_data(X, y, groups, valid_size, test_size, seed=None):
@@ -97,13 +127,33 @@ def _split_grouped_data(X, y, groups, valid_size, test_size, seed=None):
 
 
 class Data(ABC):
-    def __init__(self, path, valid_size=0.2, test_size=0.2, seed=None, sample_size=None):
+    def __init__(
+        self,
+        path,
+        valid_size=0.2,
+        test_size=0.2,
+        seed=None,
+        sample_size=None,
+        shift_periods=0,
+        shift_exclude=None,
+    ):
         self.path = path
         self.valid_size = valid_size
         self.test_size = test_size
         self.seed = seed
         self.sample_size = sample_size
     
+        if not isinstance(shift_periods, int):
+            try:
+                shift_periods = int(shift_periods)
+            except TypeError:
+                raise ValueError(
+                    "`periods` must be an integer, "
+                    f"got {type(shift_periods).__name__}."
+                )
+        self.shift_periods = shift_periods
+        self.shift_exclude = shift_exclude
+ 
     @property
     def ALIAS(self):
         return type(self).__name__.replace('Data', '').lower()
@@ -160,6 +210,13 @@ class Data(ABC):
     @abstractmethod
     def load(self):
         pass
+
+    def sample(self, data):
+        r = np.random.RandomState(self.seed)
+        sampled_groups = r.choice(
+            data[self.GROUP], size=self.sample_size, replace=False
+        )
+        return data.loc[data[self.GROUP].isin(sampled_groups)]
     
     def get_labels(self):
         _X, y, _groups = self.load()
@@ -176,9 +233,18 @@ class RAData(Data):
     TREATMENT = 'therapy'
     GROUP = 'id'
 
-    def __init__(self, *, shift=None, **kwargs):
+    THERAPIES = [
+        'csdmard',
+        'tnfi',
+        'abatacept',
+        'rituximab',
+        'il-6',
+        'jaki'
+    ]
+
+    def __init__(self, *, include_therapy_history=False, **kwargs):
         super().__init__(**kwargs)
-        self.shift = shift
+        self.include_therapy_history = include_therapy_history
 
     def get_column_transformer(self):
         # Numerical columns.
@@ -222,37 +288,39 @@ class RAData(Data):
     def load(self):
         data = pd.read_pickle(self.path)
 
-        # Drop all columns with shifted values.
-        match = partial(re.match, r'(.+)_([0-9]+)')
-        c_shifted = [
-            c for c in data.columns
-            if match(c) and match(c).group(1) in data.columns
-        ]
-        shifted = data[c_shifted]
-        data.drop(columns=c_shifted, inplace=True)
-
-        if self.shift is not None:
-            # Include the shifted columns that were specified in the
-            # configuration file.
-            shifted_variables = [match(c).group(1) for c in c_shifted]
-            for v in self.shift:
-                if not v in shifted_variables:
-                    raise ValueError(f"Column '{v}' is not shifted in the data.")
-            shifted = shifted[
-                [c for c in c_shifted if match(c).group(1) in self.shift]
-            ]
-            data = pd.concat([data, shifted], axis=1)
-
         if self.sample_size is not None:
-            r = np.random.RandomState(self.seed)
-            sampled_groups = r.choice(
-                data[self.GROUP], size=self.sample_size, replace=False
-            )
-            data = data.loc[data[self.GROUP].isin(sampled_groups)]
+            data = self.sample(data)
+        
+        is_registry_visit = ~data.visitdate.isna()
 
-        X = data.drop(columns=[self.TREATMENT, self.GROUP])
+        X = data.drop(columns=[self.TREATMENT, self.GROUP, 'visitdate'])
         y = data[self.TREATMENT]
         groups = data[self.GROUP]
+
+        if not self.include_therapy_history:
+            X = X.drop(columns=map(lambda t: f'hx{t}', self.THERAPIES))
+
+        if self.shift_periods > 0:
+            registry_data = data.loc[is_registry_visit]
+            grouped_registry_data = registry_data.groupby(groups)
+            for c in data.columns:
+                if c in self.shift_exclude:
+                    continue
+                if c == 'therapy':
+                    grouped = data[c].groupby(groups)
+                    fillna = data[c]
+                else:
+                    grouped = grouped_registry_data[c]
+                    fillna = registry_data[c]
+                for period in range(1, self.shift_periods + 1):
+                    s = shift_variable(grouped, c, period, fillna)
+                    s.reindex(data.index).to_frame()
+                    X = pd.concat([X, s], axis=1)
+                    fillna = s.squeeze()
+        
+        X = X.loc[is_registry_visit]
+        y = y.loc[is_registry_visit]
+        groups = groups.loc[is_registry_visit]
 
         return X, y, groups
 
@@ -261,24 +329,15 @@ class ADNIData(Data):
     TREATMENT = 'MRI_ordered'
     GROUP = 'RID'
 
-    def __init__(self, *, shift=None, periods=0, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.shift = shift
-        if not isinstance(periods, int):
-            try:
-                periods = int(periods)
-            except TypeError:
-                raise ValueError(
-                    "`periods` must be an integer, "
-                    f"got {type(periods).__name__}."
-                )
-        self.periods = periods
 
     def get_column_transformer(self):
         # Numerical columns.
         numerical_column_selector = make_column_selector(dtype_include='float64')
         numerical_column_steps = [
-            ('imputer', None), ('encoder', KBinsDiscretizer(subsample=None))
+            ('imputer', None),
+            ('encoder', KBinsDiscretizer(subsample=None))
         ]
         numerical_column_pipeline = Pipeline(numerical_column_steps)
 
@@ -323,11 +382,15 @@ class ADNIData(Data):
         y = data[self.TREATMENT]
         groups = data[self.GROUP]
 
-        if (self.shift is not None) and (self.periods > 0):
-            for c in self.shift:
+        if self.shift_periods > 0:
+            grouped_data = data.groupby(groups)
+            for c in data.columns:
+                if c in self.shift_exclude:
+                    continue
+                grouped = grouped_data[c]
                 fillna = data[c]
-                for period in range(1, self.periods + 1):
-                    s = shift_variable(X, groups, c, period, fillna)
+                for period in range(1, self.shift_periods + 1):
+                    s = shift_variable(grouped, c, period, fillna)
                     X = pd.concat([X, s.to_frame()], axis=1)
                     fillna = s.squeeze()
 
@@ -335,14 +398,152 @@ class ADNIData(Data):
 
 
 class SwitchData(RAData):
-    def __init__(self, *, shift=None, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.shift = shift
     
     def load(self):
         X, y, groups = super().load()
         y_encoded = LabelEncoder().fit_transform(y)
         y = pd.Series(y_encoded, index=y.index, name=y.name)
-        y = y.groupby(groups, group_keys=False).apply(pd.Series.diff).fillna(0)
+        y = y.groupby(groups).diff().fillna(0)
         y = (y != 0).astype(int)
+        return X, y, groups
+
+
+class SepsisData(Data):
+    FEATURES = [
+        'HR',
+        'SysBP',
+        'MeanBP',
+        'DiaBP',
+        'Shock_Index',
+        'Hb',
+        'BUN',
+        'Creatinine',
+        'output_4hourly',
+        'Arterial_pH',
+        'Arterial_BE',
+        'HCO3',
+        'Arterial_lactate',
+        'PaO2_FiO2',
+        'age',
+        'elixhauser',
+        'SOFA'
+    ]
+    TREATMENT = [
+        'input_4hourly',
+        'max_dose_vaso'
+    ]
+    GROUP = 'icustayid'
+
+    LOG_SCALE = [
+        'SpO2',
+        'BUN',
+        'Creatinine',
+        'SGOT',
+        'SGPT',
+        'Total_bili',
+        'INR',
+        'input_total',
+        'input_4hourly',
+        'output_total',
+        'output_4hourly',
+        'max_dose_vaso'
+    ]
+    SCALE = [
+        'age',
+        'Weight_kg',
+        'GCS',
+        'HR',
+        'SysBP',
+        'MeanBP',
+        'DiaBP',
+        'RR',
+        'Temp_C',
+        'FiO2_1',
+        'Potassium',
+        'Sodium',
+        'Chloride',
+        'Glucose',
+        'Magnesium',
+        'Calcium',
+        'Hb',
+        'WBC_count',
+        'Platelets_count',
+        'PTT',
+        'PT',
+        'Arterial_pH',
+        'paO2',
+        'paCO2',
+        'Arterial_BE',
+        'HCO3',
+        'Arterial_lactate',
+        'SOFA',
+        'SIRS',
+        'Shock_Index',
+        'PaO2_FiO2',
+        'cumulated_balance',
+        'elixhauser'
+    ]
+
+    def __init__(self, *, num_levels=5, **kwargs):
+        self.num_levels = num_levels
+        super().__init__(**kwargs)
+
+    def get_scale_transformer(self):
+        return make_pipeline(StandardScaler())
+
+    def get_log_scale_transformer(self):
+        return make_pipeline(
+            FunctionTransformer(_add_log, feature_names_out='one-to-one'),
+            StandardScaler()
+        )
+
+    def get_scaled_columns(self, X):
+        scaled_columns = self.SCALE
+        for period in range(1, self.periods + 1):
+            scaled_columns += [f'{c}_{period}' for c in self.SCALE]
+        return sorted(list(set(X).intersection(scaled_columns)))
+
+    def get_log_scaled_columns(self, X):
+        log_scaled_columns = self.LOG_SCALE
+        for period in range(1, self.periods + 1):
+            log_scaled_columns += [f'{c}_{period}' for c in self.LOG_SCALE]
+        return sorted(list(set(X).intersection(log_scaled_columns)))
+
+    def get_column_transformer(self):
+        return make_column_transformer(
+            (self.get_scale_transformer(), self.get_scaled_columns),
+            (self.get_log_scale_transformer(), self.get_log_scaled_columns),
+            remainder='passthrough'
+        )
+
+    def get_feature_selector(self):
+            return None
+
+    def load(self):
+        data = pd.read_csv(self.path)
+
+        if self.sample_size is not None:
+            data = self.sample(data)
+
+        X = data[self.FEATURES]
+        groups = data[self.GROUP]
+
+        Y = data[self.TREATMENT]
+        Y_discrete = Y.apply(discretize_doses, raw=True, num_levels=self.num_levels)
+        _, y = np.unique(Y_discrete, axis=0, return_inverse=True)
+
+        if self.shift_periods > 0:
+            grouped_data = data.groupby(groups)
+            for c in data.columns:
+                if c in self.shift_exclude:
+                    continue
+                grouped = grouped_data[c]
+                fillna = data[c]
+                for period in range(1, self.shift_periods + 1):
+                    s = shift_variable(grouped, c, period, fillna)
+                    X = pd.concat([X, s.to_frame()], axis=1)
+                    fillna = s.squeeze()
+
         return X, y, groups

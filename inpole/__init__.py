@@ -6,6 +6,7 @@ EXPERIMENTS = {
     'ra': RAData,
     'adni': ADNIData,
     'switch': SwitchData,
+    'sepsis': SepsisData
 }
 
 NET_ESTIMATORS = {

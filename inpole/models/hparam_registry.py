@@ -98,6 +98,20 @@ def _hparams(estimator_name, experiment, seed):
     ]:
         _hparam('module__num_prototypes', 4, lambda r: r.choice([2, 4, 6, 8, 10]))
     
+    # =========================================================================
+    # Experiment-DEPENDENT parameters (Sepsis).
+    # =========================================================================
+    
+    if experiment == 'sepsis' and estimator_name not in OTHER_ESTIMATORS:
+        _hparam('lr', 1.0e-3, lambda r: 10. ** r.choice([-3, -2]))
+        _hparam('max_epochs', 50, lambda r: 50)
+        _hparam('batch_size', 32, lambda r: r.choice([32, 64]))
+    
+    if experiment == 'sepsis' and estimator_name in [
+        'pronet', 'prosenet', 'truncated_prosenet'
+    ]:
+        _hparam('module__num_prototypes', 10, lambda r: r.choice([5, 10, 15, 20, 25]))
+
     return hparams
 
     
