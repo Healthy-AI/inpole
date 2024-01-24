@@ -73,12 +73,13 @@ def train(config, estimator_name):
     X_train, y_train = data_train
     X_valid, y_valid = data_valid
 
-    if expects_groups(estimator):
-        # Remove "_1" features.
+    if estimator_name.startswith('truncated'):
+        # Remove "_1 features".
         c_shifted = get_shifted_column_names(X_train)
         X_train = X_train.drop(columns=c_shifted)
         X_valid = X_valid.drop(columns=c_shifted)
-    else:
+
+    if not expects_groups(estimator):
         X_train = X_train.drop(columns=data_handler.GROUP)
         X_valid = X_valid.drop(columns=data_handler.GROUP)
 
@@ -148,11 +149,12 @@ def predict(
     elif subset == 'test':
         X, y = data_test
     
-    if expects_groups(pipeline[-1]):
-        # Remove "_1" features.
+    if estimator_name.startswith('truncated'):
+        # Remove "_1 features".
         c_shifted = get_shifted_column_names(X)
         X = X.drop(columns=c_shifted)
-    else:
+    
+    if not expects_groups(pipeline[-1]):
        X = X.drop(columns=data_handler.GROUP)
 
     metrics = [
