@@ -52,6 +52,7 @@ def _hparams(estimator_name, experiment, seed):
     if estimator_name == 'lr':
         _hparam('penalty', 'l2', lambda r: 'l2')
         _hparam('C', 1.0, lambda r: 10. ** r.choice([-3, -2, -1, 0, 1, 1, 2, 3]))
+        _hparam('max_iter', 2000, lambda r: 2000)
     
     if estimator_name == 'dt':
         _hparam('max_depth', None, lambda r: r.choice([3, 5, 7, 9, 11, 13, 15]))
