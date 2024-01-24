@@ -501,13 +501,13 @@ class SepsisData(Data):
 
     def get_scaled_columns(self, X):
         scaled_columns = self.SCALE
-        for period in range(1, self.periods + 1):
+        for period in range(1, self.shift_periods + 1):
             scaled_columns += [f'{c}_{period}' for c in self.SCALE]
         return sorted(list(set(X).intersection(scaled_columns)))
 
     def get_log_scaled_columns(self, X):
         log_scaled_columns = self.LOG_SCALE
-        for period in range(1, self.periods + 1):
+        for period in range(1, self.shift_periods + 1):
             log_scaled_columns += [f'{c}_{period}' for c in self.LOG_SCALE]
         return sorted(list(set(X).intersection(log_scaled_columns)))
 
