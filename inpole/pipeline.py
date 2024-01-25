@@ -87,7 +87,7 @@ def _create_estimator(
     if estimator_name in RECURRENT_NET_ESTIMATORS:
         if estimator_name.startswith('truncated'):
             params['dataset'] = TruncatedHistoryDataset
-            params['dataset__periods'] = config['data']['periods']
+            params['dataset__periods'] = config['data']['shift_periods']
         else:
             params['dataset'] = SequentialDataset
         params['iterator_train__collate_fn'] = pad_pack_sequences
