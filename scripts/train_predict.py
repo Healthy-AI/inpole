@@ -1,5 +1,6 @@
 import argparse
 import joblib
+import os
 from os.path import join
 
 from amhelpers.config_parsing import load_config
@@ -36,6 +37,13 @@ if __name__ == '__main__':
     else:
         pipeline = train(config, args.estimator)
         joblib.dump(pipeline, f_pipeline)
+        if 'sdt' in args.estimator or 'rdt' in args.estimator:
+            # Delete saved history objects.
+            results_path = config['results']['path']
+            for root, _, files in os.walk(results_path):
+                for f in files:
+                    if 'history' in f and not f.startswith('final_best_history'):
+                        os.remove(join(root, f))
     
     # Evaluate model.
     subsets = ['valid', 'test']
