@@ -36,7 +36,7 @@ def _hparams(estimator_name, experiment, seed):
         _hparam('delta2', 1.0e-3, lambda r: 10. ** r.choice([-3, -2, -1]))
         _hparam('module__hidden_dim', 10, lambda r: r.choice([5, 10, 15, 20]))
     
-    if estimator_name in ['pronet', 'prosenet']:
+    if estimator_name in ['pronet', 'prosenet', 'truncated_prosenet']:
         _hparam('d_min', 1, lambda r: r.choice([1, 2, 3, 4, 5]))
         _hparam('lambda_div', 1.0e-3, lambda r: 10. ** r.choice([-5, -4, -3, -2, -1]))
         
@@ -79,10 +79,14 @@ def _hparams(estimator_name, experiment, seed):
         _hparam('max_epochs', 50, lambda r: 50)
         _hparam('batch_size', 32, lambda r: r.choice([32, 64]))
     
-    if experiment == 'ra' and estimator_name in ['pronet', 'prosenet']:
+    if experiment == 'ra' and estimator_name in [
+            'pronet', 'prosenet', 'truncated_prosenet'
+        ]:
         _hparam('module__num_prototypes', 10, lambda r: r.choice([10, 20, 30]))
     
-    if experiment == 'switch' and estimator_name in ['pronet', 'prosenet']:
+    if experiment == 'switch' and estimator_name in [
+        'pronet', 'prosenet', 'truncated_prosenet'
+    ]:
         _hparam('module__num_prototypes', 4, lambda r: r.choice([2, 4, 6, 8, 10]))
 
     # =========================================================================
