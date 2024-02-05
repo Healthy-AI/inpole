@@ -124,7 +124,7 @@ ml purge && ml Python/3.10.8-GCCcore-12.2.0 SciPy-bundle/2023.02-gfbf-2022b PyYA
 virtualenv --system-site-packages sweep_env
 source sweep_env/bin/activate
 pip install --no-cache-dir --no-build-isolation gitpython~=3.1
-pip install --no-cache-dir --no-build-isolation --no-deps amhelpers==0.5.4
+pip install --no-cache-dir --no-build-isolation --no-deps amhelpers==0.5.5
 pip install --no-cache-dir --no-build-isolation --no-deps -e .
 ```
 

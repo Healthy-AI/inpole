@@ -3,11 +3,15 @@ Bootstrap: docker
 From: continuumio/miniconda3:latest
 
 %post
-    # Install gcc, graphviz, libgmp3-dev, and rsync.
+    # Install software.
     apt-get update && apt-get install -y gcc
     apt-get install -y graphviz
     apt-get install -y libgmp3-dev
     apt-get install -y rsync
+    apt-get install -y dvipng
+    apt-get install -y texlive-latex-extra
+    apt-get install -y texlive-fonts-recommended
+    apt-get install -y cm-super
 
     # Install conda packages.
     rsync -r /mnt/inpole . --exclude='*_env'
@@ -20,8 +24,12 @@ From: continuumio/miniconda3:latest
     conda activate $env_name
 
     # Install risk-slim and aix360 using pip.
-    pip install -e git+https://github.com/antmats/risk-slim.git#egg=riskslim
-    pip install -e git+https://github.com/Trusted-AI/AIX360.git#egg=aix360[rbm]
+    #
+    # The installation of risk-slim requires scipy and fails for scipy >= 1.12,
+    # so we ensure that an earlier version of scipy is installed.
+    pip install scipy==1.11.4
+    pip install -e git+https://github.com/antmats/risk-slim.git#egg=riskslim --src ./lib
+    pip install -e git+https://github.com/Trusted-AI/AIX360.git#egg=aix360[rbm] --src ./lib
 
     # Install other packages using Poetry.
     poetry install --without dev
