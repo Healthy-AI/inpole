@@ -11,6 +11,7 @@ from scipy.stats import rankdata
 from sklearn.model_selection import GroupShuffleSplit
 from sklearn.preprocessing import (
     FunctionTransformer,
+    MinMaxScaler,
     StandardScaler,
     OneHotEncoder,
     KBinsDiscretizer,
@@ -211,6 +212,26 @@ class Data(ABC):
     def load(self):
         pass
 
+    def shift_inputs(self, X, data):
+        grouped_data = data.groupby(self.GROUP)
+        shiftable_columns = list(X.columns)
+        shiftable_columns += self.TREATMENT if isinstance(self.TREATMENT, list) \
+            else [self.TREATMENT]
+        for c in data.columns:
+            if (
+                c in self.shift_exclude or
+                c == self.GROUP or
+                c not in shiftable_columns
+            ):
+                continue
+            grouped = grouped_data[c]
+            fillna = data[c]
+            for period in range(1, self.shift_periods + 1):
+                s = shift_variable(grouped, c, period, fillna)
+                X = pd.concat([X, s.to_frame()], axis=1)
+                fillna = s.squeeze()
+        return X
+
     def sample(self, data):
         r = np.random.RandomState(self.seed)
         sampled_groups = r.choice(
@@ -285,13 +306,35 @@ class RAData(Data):
     def get_feature_selector(self):
         return None
 
+    def shift_inputs(self, X, data):
+        registry_data = data.loc[~data.visitdate.isna()]
+        grouped_registry_data = registry_data.groupby(self.GROUP)
+        shiftable_columns = list(X.columns) + [self.TREATMENT]
+        for c in data.columns:
+            if (
+                c in self.shift_exclude or
+                c == self.GROUP or
+                c not in shiftable_columns
+            ):
+                continue
+            if c == 'therapy':
+                grouped = data[c].groupby(data[self.GROUP])
+                fillna = data[c]
+            else:
+                grouped = grouped_registry_data[c]
+                fillna = registry_data[c]
+            for period in range(1, self.shift_periods + 1):
+                s = shift_variable(grouped, c, period, fillna)
+                s.reindex(data.index).to_frame()
+                X = pd.concat([X, s], axis=1)
+                fillna = s.squeeze()
+        return X
+
     def load(self):
         data = pd.read_pickle(self.path)
 
         if self.sample_size is not None:
             data = self.sample(data)
-        
-        is_registry_visit = ~data.visitdate.isna()
 
         X = data.drop(columns=[self.TREATMENT, self.GROUP, 'visitdate'])
         y = data[self.TREATMENT]
@@ -301,23 +344,9 @@ class RAData(Data):
             X = X.drop(columns=map(lambda t: f'hx{t}', self.THERAPIES))
 
         if self.shift_periods > 0:
-            registry_data = data.loc[is_registry_visit]
-            grouped_registry_data = registry_data.groupby(groups)
-            for c in data.columns:
-                if c in self.shift_exclude:
-                    continue
-                if c == 'therapy':
-                    grouped = data[c].groupby(groups)
-                    fillna = data[c]
-                else:
-                    grouped = grouped_registry_data[c]
-                    fillna = registry_data[c]
-                for period in range(1, self.shift_periods + 1):
-                    s = shift_variable(grouped, c, period, fillna)
-                    s.reindex(data.index).to_frame()
-                    X = pd.concat([X, s], axis=1)
-                    fillna = s.squeeze()
+            X = self.shift_inputs(X, data)
         
+        is_registry_visit = ~data.visitdate.isna()
         X = X.loc[is_registry_visit]
         y = y.loc[is_registry_visit]
         groups = groups.loc[is_registry_visit]
@@ -383,16 +412,7 @@ class ADNIData(Data):
         groups = data[self.GROUP]
 
         if self.shift_periods > 0:
-            grouped_data = data.groupby(groups)
-            for c in data.columns:
-                if c in self.shift_exclude:
-                    continue
-                grouped = grouped_data[c]
-                fillna = data[c]
-                for period in range(1, self.shift_periods + 1):
-                    s = shift_variable(grouped, c, period, fillna)
-                    X = pd.concat([X, s.to_frame()], axis=1)
-                    fillna = s.squeeze()
+            X = self.shift_inputs(X, data)
 
         return X, y, groups
 
@@ -411,7 +431,14 @@ class SwitchData(RAData):
 
 
 class SepsisData(Data):
+    TREATMENT = [
+        'input_4hourly',
+        'max_dose_vaso'
+    ]
+    GROUP = 'icustayid'
+
     FEATURES = [
+        'gender',
         'HR',
         'SysBP',
         'MeanBP',
@@ -430,12 +457,12 @@ class SepsisData(Data):
         'elixhauser',
         'SOFA'
     ]
-    TREATMENT = [
-        'input_4hourly',
-        'max_dose_vaso'
-    ]
-    GROUP = 'icustayid'
 
+    SHIFT = [
+        'gender',
+        'mechvent',
+        're_admission'
+    ]
     LOG_SCALE = [
         'SpO2',
         'BUN',
@@ -490,6 +517,9 @@ class SepsisData(Data):
         self.num_levels = num_levels
         super().__init__(**kwargs)
 
+    def get_shift_transformer(self):
+        return make_pipeline(MinMaxScaler((-0.5, 0.5)))
+
     def get_scale_transformer(self):
         return make_pipeline(StandardScaler())
 
@@ -498,6 +528,12 @@ class SepsisData(Data):
             FunctionTransformer(_add_log, feature_names_out='one-to-one'),
             StandardScaler()
         )
+
+    def get_shifted_columns(self, X):
+        shifted_columns = self.SHIFT
+        for period in range(1, self.shift_periods + 1):
+            shifted_columns += [f'{c}_{period}' for c in self.SHIFT]
+        return sorted(list(set(X).intersection(shifted_columns)))
 
     def get_scaled_columns(self, X):
         scaled_columns = self.SCALE
@@ -513,6 +549,7 @@ class SepsisData(Data):
 
     def get_column_transformer(self):
         return make_column_transformer(
+            (self.get_shift_transformer(), self.get_shifted_columns),
             (self.get_scale_transformer(), self.get_scaled_columns),
             (self.get_log_scale_transformer(), self.get_log_scaled_columns),
             remainder='passthrough'
@@ -535,15 +572,6 @@ class SepsisData(Data):
         _, y = np.unique(Y_discrete, axis=0, return_inverse=True)
 
         if self.shift_periods > 0:
-            grouped_data = data.groupby(groups)
-            for c in data.columns:
-                if c in self.shift_exclude:
-                    continue
-                grouped = grouped_data[c]
-                fillna = data[c]
-                for period in range(1, self.shift_periods + 1):
-                    s = shift_variable(grouped, c, period, fillna)
-                    X = pd.concat([X, s.to_frame()], axis=1)
-                    fillna = s.squeeze()
-
+            X = self.shift_inputs(X, data)
+        
         return X, y, groups
