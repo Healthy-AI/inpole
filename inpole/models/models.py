@@ -170,6 +170,7 @@ class NeuralNetClassifier(ClassifierMixin, skorch.NeuralNetClassifier):
         epoch_scoring='auc',
         monitor='auc',
         early_stopping=True,
+        patience=5,
         seed=2023,
         **kwargs
     ):
@@ -179,6 +180,7 @@ class NeuralNetClassifier(ClassifierMixin, skorch.NeuralNetClassifier):
         self.epoch_scoring = epoch_scoring
         self.monitor = monitor
         self.early_stopping = early_stopping
+        self.patience = patience
         self.seed = seed
 
         self._validate_parameters()
@@ -275,7 +277,7 @@ class NeuralNetClassifier(ClassifierMixin, skorch.NeuralNetClassifier):
         callback = cbs.EarlyStopping(
             monitor=monitor,
             lower_is_better=lower_is_better,
-            patience=5
+            patience=self.patience
         )
         callback = ('early_stopping', callback)
         self.callbacks.append(callback)
