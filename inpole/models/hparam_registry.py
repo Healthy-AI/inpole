@@ -7,7 +7,6 @@ from .. import OTHER_ESTIMATORS
 # @TODO: Add hyperparameters for the following estimators and datasets:
 # - rulefit
 # - fasterrisk
-# - adni.
 
 
 def _hparams(estimator_name, experiment, seed):
@@ -80,8 +79,8 @@ def _hparams(estimator_name, experiment, seed):
         _hparam('batch_size', 32, lambda r: r.choice([32, 64]))
     
     if experiment == 'ra' and estimator_name in [
-            'pronet', 'prosenet', 'truncated_prosenet'
-        ]:
+        'pronet', 'prosenet', 'truncated_prosenet'
+    ]:
         _hparam('module__num_prototypes', 10, lambda r: r.choice([10, 20, 30]))
     
     if experiment == 'switch' and estimator_name in [
@@ -109,9 +108,19 @@ def _hparams(estimator_name, experiment, seed):
     
     if experiment == 'sepsis' and estimator_name not in OTHER_ESTIMATORS:
         _hparam('lr', 1.0e-3, lambda r: 10. ** r.choice([-3, -2]))
-        _hparam('max_epochs', 50, lambda r: 50)
-        _hparam('batch_size', 32, lambda r: r.choice([32, 64]))
-    
+        _hparam('max_epochs', 500, lambda r: 500)
+
+    if experiment == 'sepsis' and estimator_name in ['sdt', 'mlp', 'pronet']:
+        _hparam('batch_size', 512, lambda r: r.choice([256, 512, 1024]))
+
+    if experiment == 'sepsis' and estimator_name in ['rdt', 'rnn', 'prosenet']:
+        _hparam('batch_size', 32, lambda r: r.choice([16, 32, 64]))
+
+    if experiment == 'sepsis' and estimator_name in [
+        'truncated_rdt', 'truncated_rnn', 'truncated_prosenet'
+    ]:
+        _hparam('batch_size', 128, lambda r: r.choice([64, 128, 256]))
+
     if experiment == 'sepsis' and estimator_name in [
         'pronet', 'prosenet', 'truncated_prosenet'
     ]:
