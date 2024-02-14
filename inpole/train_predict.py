@@ -74,8 +74,16 @@ def train(config, estimator_name):
     X_valid, y_valid = data_valid
 
     if estimator_name.startswith('truncated'):
-        # Remove "_1 features".
+        # We remove all "_1 features" except the previous therapy.
         c_shifted = get_shifted_column_names(X_train)
+        try:
+            if isinstance(data_handler.TREATMENT, list):
+                for treatment in data_handler.TREATMENT:
+                    c_shifted.remove(treatment+ '_1')
+            else:
+                c_shifted.remove(data_handler.TREATMENT + '_1')
+        except ValueError:
+            pass
         X_train = X_train.drop(columns=c_shifted)
         X_valid = X_valid.drop(columns=c_shifted)
 
