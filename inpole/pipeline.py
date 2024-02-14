@@ -143,8 +143,7 @@ def create_pipeline(
         # Infer input/output dimensions from training data.
         X_train, y_train = data_handler.get_splits()[0]
         if estimator_name.startswith('truncated'):
-            c_shifted = get_shifted_column_names(X_train)
-            X_train = X_train.drop(columns=c_shifted)
+            X_train = drop_shifted_columns(X_train, data_handler.TREATMENT)
         preprocessor.fit(X_train, y_train)
         input_dim = len(preprocessor.get_feature_names_out()) - 1
         output_dim = len(set(y_train))

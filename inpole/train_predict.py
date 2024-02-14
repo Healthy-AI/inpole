@@ -11,7 +11,7 @@ from .models import (
     FRLClassifier
 )
 from .data.data import get_data_handler_from_config
-from .data.utils import get_shifted_column_names
+from .data.utils import drop_shifted_columns
 from .pipeline import create_pipeline
 from . import NET_ESTIMATORS, RECURRENT_NET_ESTIMATORS
 
@@ -21,6 +21,13 @@ ALL_NET_ESTIMATORS = NET_ESTIMATORS | RECURRENT_NET_ESTIMATORS
 
 # @TODO: rulefit uses internal cross-validation, so perhaps we should train it using 
 # both training data and validation data.
+
+
+def is_net_estimator(estimator_name):
+    return estimator_name in ALL_NET_ESTIMATORS or (
+        estimator_name.startswith('switch') and
+        estimator_name.split('_')[-1] in ALL_NET_ESTIMATORS
+    )
 
 
 def _get_previous_therapy_index(feature_names, prev_therapy_prefix):
@@ -52,6 +59,8 @@ def _get_feature_names(preprocessor, X=None, y=None, trim=True):
 
 
 def _separate_switches(preprocessor, treatment, X, y):
+    assert isinstance(treatment, str)
+
     feature_names = _get_feature_names(preprocessor)
     prefix = treatment + '_1_'
     prev_therapy_index = _get_previous_therapy_index(feature_names, prefix)
@@ -74,18 +83,8 @@ def train(config, estimator_name):
     X_valid, y_valid = data_valid
 
     if estimator_name.startswith('truncated'):
-        # We remove all "_1 features" except the previous therapy.
-        c_shifted = get_shifted_column_names(X_train)
-        try:
-            if isinstance(data_handler.TREATMENT, list):
-                for treatment in data_handler.TREATMENT:
-                    c_shifted.remove(treatment+ '_1')
-            else:
-                c_shifted.remove(data_handler.TREATMENT + '_1')
-        except ValueError:
-            pass
-        X_train = X_train.drop(columns=c_shifted)
-        X_valid = X_valid.drop(columns=c_shifted)
+        X_train = drop_shifted_columns(X_train, data_handler.TREATMENT)
+        X_valid = drop_shifted_columns(X_valid, data_handler.TREATMENT)
 
     if not expects_groups(estimator):
         X_train = X_train.drop(columns=data_handler.GROUP)
@@ -93,13 +92,7 @@ def train(config, estimator_name):
 
     fit_params = {}
     
-    if (
-        estimator_name in ALL_NET_ESTIMATORS or
-        (
-            estimator_name.startswith('switch') and
-            estimator_name.split('_')[-1] in ALL_NET_ESTIMATORS
-        )
-    ):
+    if is_net_estimator(estimator_name):
         fit_params['estimator__X_valid'] = X_valid
         fit_params['estimator__y_valid'] = y_valid
     
@@ -158,9 +151,7 @@ def predict(
         X, y = data_test
     
     if estimator_name.startswith('truncated'):
-        # Remove "_1 features".
-        c_shifted = get_shifted_column_names(X)
-        X = X.drop(columns=c_shifted)
+        X = drop_shifted_columns(X, data_handler.TREATMENT)
     
     if not expects_groups(pipeline[-1]):
        X = X.drop(columns=data_handler.GROUP)

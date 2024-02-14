@@ -26,6 +26,7 @@ from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.impute import SimpleImputer
 
 from . import hparam_registry
+from .utils import shift_variable
 
 
 # Include new datasets here.
@@ -55,13 +56,6 @@ def get_data_handler_from_config(config):
         except KeyError:
             raise ValueError(f"Unknown experiment: {experiment}.")
     return data_handler_class(**config['data'])
-
-
-def shift_variable(grouped, variable, period, fillna):
-    shifted = grouped.shift(periods=period)
-    shifted = shifted.fillna(fillna)
-    shifted.rename(f'{variable}_{period}', inplace=True)
-    return shifted
 
 
 def discretize_doses(doses, num_levels):

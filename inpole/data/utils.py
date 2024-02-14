@@ -13,12 +13,34 @@ from skorch.utils import to_numpy
 
 
 __all__ = [
+    'drop_shifted_columns',
+    'shift_variable',
     'get_shifted_column_names',
     'pad_pack_sequences',
     'StandardDataset',
     'SequentialDataset',
     'TruncatedHistoryDataset'
 ]
+
+
+def drop_shifted_columns(X, treatments):
+    # Remove all "_1 features" except the previous therapy.
+    c_shifted = get_shifted_column_names(X)
+    if not isinstance(treatments, list):
+        treatments = [treatments]
+    for treatment in treatments:
+        try:
+            c_shifted.remove(treatment + '_1')
+        except ValueError:
+            pass
+    return X.drop(columns=c_shifted)
+
+
+def shift_variable(grouped, variable, period, fillna):
+    shifted = grouped.shift(periods=period)
+    shifted = shifted.fillna(fillna)
+    shifted.rename(f'{variable}_{period}', inplace=True)
+    return shifted
 
 
 def get_shifted_column_names(X):
