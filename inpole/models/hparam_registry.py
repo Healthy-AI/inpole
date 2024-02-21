@@ -57,17 +57,14 @@ def _hparams(estimator_name, experiment, seed):
         _hparam('max_depth', None, lambda r: r.choice([3, 5, 7, 9, 11, 13, 15]))
     
     if estimator_name == 'frl':
-        _hparam('minsupport', 10, lambda r: r.choice([8, 10, 12, 14, 16, 18, 20]))
+        _hparam('minsupport', 10, lambda r: r.choice([8, 10, 12, 16, 18, 20]))
         _hparam('max_predicates_per_ant', 2, lambda r: r.choice([2, 3, 4, 5]))
-        _hparam('w', 5, lambda r: r.choice([5, 6, 7]))
-        _hparam('T', 3000, lambda r: r.choice([2000, 3000, 4000, 5000]))
-        _hparam('lambda_', 0.8, lambda r: r.choice([0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]))
+        _hparam('w', 5, lambda r: r.choice([4, 5, 6]))
 
     if estimator_name == 'riskslim':
-        _hparam('max_coefficient', 5, lambda r: r.choice([3, 4, 5, 6, 7, 8, 9, 10]))
-        _hparam('max_L0_value', 5, lambda r: r.choice([3, 4, 5, 6, 7, 8, 9]))
-        _hparam('max_offset', 50, lambda r: r.choice([50, 70, 90, 110, 130]))
-        _hparam('w_pos', 1, lambda r: r.choice([3, 4, 5, 6, 7]))
+        _hparam('max_coefficient', 5, lambda r: r.choice([3, 4, 5, 6, 7, 8]))
+        _hparam('max_L0_value', 5, lambda r: r.choice([3, 4, 5, 6, 7]))
+        _hparam('w_pos', 1, lambda r: r.choice([3, 4, 5]))
 
     # =========================================================================
     # Experiment-DEPENDENT parameters (RA/Switch).
