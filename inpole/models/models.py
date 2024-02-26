@@ -1111,7 +1111,7 @@ class RuleFitClassifier(ClassifierMixin, rulefit.RuleFit):
         self,
         tree_size=4,
         sample_fract='default',
-        max_rules=2000,
+        max_rules=50,
         memory_par=0.01,
         tree_generator=None,
         rfmode='classify',
@@ -1145,10 +1145,54 @@ class RuleFitClassifier(ClassifierMixin, rulefit.RuleFit):
             random_state=random_state
         )
 
-    def fit(self, X, y, feature_names=None, **kwargs):
+    def fit(self, X, y, feature_names, **kwargs):
         super().fit(X, y, feature_names, **kwargs)
         self.classes_ = np.unique(y)
         return self
+
+    def get_rules(self, exclude_zero_coef=False, subregion=None):
+        """Return the estimated rules
+        Parameters
+        ----------
+        exclude_zero_coef: If True, returns only the rules with an estimated coefficient not equalt to  zero.
+        subregion: If None (default) returns global importances (FP 2004 eq. 28/29), else returns importance over
+                           subregion of inputs (FP 2004 eq. 30/31/32).
+        Returns
+        -------
+        rules: pandas.DataFrame with the rules. Column 'rule' describes the rule, 'coef' holds
+               the coefficients and 'support' the support of the rule in the training
+               data set (X)
+        """
+        n_features= len(self.coef_) - len(self.rule_ensemble.rules)
+        rule_ensemble = list(self.rule_ensemble.rules)
+        output_rules = []
+        # Add coefficients for linear effects
+        for i in range(0, n_features):
+            if self.lin_standardise:
+                coef=self.coef_[i]*self.friedscale.scale_multipliers[i]
+            else:
+                coef=self.coef_[i]
+            if subregion is None:
+                importance = abs(coef)*self.stddev[i]
+            else:
+                subregion = np.array(subregion)
+                importance = sum(abs(coef)* abs([ x[i] for x in self.winsorizer.trim(subregion) ] - self.mean[i]))/len(subregion)
+            output_rules += [(self.feature_names[i], 'linear',coef, 1, importance)]
+        # Add rules
+        for i in range(0, len(self.rule_ensemble.rules)):
+            rule = rule_ensemble[i]
+            coef=self.coef_[i + n_features]
+            if subregion is None:
+                importance = abs(coef)*(rule.support * (1-rule.support))**(1/2)
+            else:
+                rkx = rule.transform(subregion)
+                importance = sum(abs(coef) * abs(rkx - rule.support))/len(subregion)
+
+            output_rules += [(rule.__str__(), 'rule', coef,  rule.support, importance)]
+        rules = pd.DataFrame(output_rules, columns=["rule", "type","coef", "support", "importance"])
+        if exclude_zero_coef:
+            rules = rules.ix[rules.coef != 0]
+        return rules
 
 
 class RiskSlimClassifier(ClassifierMixin):
