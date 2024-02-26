@@ -23,7 +23,7 @@ def _hparams(estimator_name, experiment, seed):
     # =========================================================================
     # Experiment-INDEPENDENT parameters.
     # =========================================================================
-    
+     
     if estimator_name in ['sdt', 'rdt', 'truncated_rdt']:
         _hparam('initial_depth', 2, lambda r: r.choice([1, 2]))
         _hparam('lambda_', 1.0e-3, lambda r: 10. ** r.choice([-3, -2, -1]))
@@ -65,7 +65,11 @@ def _hparams(estimator_name, experiment, seed):
         _hparam('max_coefficient', 5, lambda r: r.choice([3, 4, 5, 6, 7, 8]))
         _hparam('max_L0_value', 5, lambda r: r.choice([3, 4, 5, 6, 7]))
         _hparam('w_pos', 1, lambda r: r.choice([3, 4, 5]))
-
+    
+    if estimator_name == 'rulefit':
+        _hparam('tree_size', 4, lambda r: r.choice([1, 2, 3, 4, 5]))
+        _hparam('max_rules', 50, lambda r: r.choice([10, 30, 50, 70, 90, 100]))
+        
     # =========================================================================
     # Experiment-DEPENDENT parameters (RA/Switch).
     # =========================================================================
