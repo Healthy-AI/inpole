@@ -1387,13 +1387,18 @@ class FRLClassifier(ClassifierMixin):
 
         assert list(preprocessor.named_steps) == \
             ['column_transformer', 'feature_selector']
-        assert preprocessor.named_steps['feature_selector'] is None
         
+        if preprocessor.named_steps['feature_selector'] is not None:
+            fs = preprocessor.named_steps['feature_selector']
+            assert fs.n_features_in_ == len(fs.get_feature_names_out())
+
         assert np.array_equal(Xt, Xt.astype(bool))
 
         column_transformer = preprocessor.named_steps['column_transformer']
         transformers = column_transformer.transformers_
         output_indices = column_transformer.output_indices_
+
+        transformers = [t for t in transformers if t[0] != 'remainder']
 
         assert all(
             list(pipeline.named_steps) == ['imputer', 'encoder']

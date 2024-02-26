@@ -59,7 +59,7 @@ def get_data_handler_from_config(config):
 
 
 def discretize_doses(doses, num_levels):
-    """Discretize continuous doses into `num_levels` levels.
+    """Discretize continuous treatment doses into `num_levels` levels.
 
     Parameters
     ----------
@@ -83,44 +83,6 @@ def discretize_doses(doses, num_levels):
     return discrete_doses
 
 
-def _add_log(x):
-    return np.log(0.1 + x)
-
-
-def _split_grouped_data(X, y, groups, valid_size, test_size, seed=None):
-    if isinstance(y, pd.Series):
-        y = y.to_numpy()
-    
-    y = LabelEncoder().fit_transform(y)
-
-    Xg = pd.concat([X, groups], axis=1)
-
-    gss = GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=seed)
-    ii_train, ii_test = next(gss.split(X, y, groups))
-    
-    Xg_train, y_train = Xg.iloc[ii_train], y[ii_train]
-    Xg_test, y_test = Xg.iloc[ii_test], y[ii_test]
-    groups_train = groups.iloc[ii_train]
-
-    if valid_size > 0:
-        train_size = 1 - test_size
-        _valid_size = valid_size / train_size
-        
-        gss = GroupShuffleSplit(n_splits=1, test_size=_valid_size, random_state=seed)
-        ii_train, ii_valid = next(gss.split(Xg_train, y_train, groups_train))
-        
-        Xg_valid, y_valid = Xg_train.iloc[ii_valid], y_train[ii_valid]
-        Xg_train, y_train = Xg_train.iloc[ii_train], y_train[ii_train]
-    else:
-        Xg_valid, y_valid = None, None
-
-    data_train = (Xg_train, y_train)
-    data_valid = (Xg_valid, y_valid)
-    data_test = (Xg_test, y_test)
-
-    return data_train, data_valid, data_test
-
-
 class Data(ABC):
     def __init__(
         self,
@@ -129,6 +91,9 @@ class Data(ABC):
         test_size=0.2,
         seed=None,
         sample_size=None,
+        include_previous_treatment=True,
+        fillna_strategy='raise',
+        aggregate_history=False,
         shift_periods=0,
         shift_exclude=None,
     ):
@@ -137,18 +102,29 @@ class Data(ABC):
         self.test_size = test_size
         self.seed = seed
         self.sample_size = sample_size
+        self.include_previous_treatment = include_previous_treatment
+        self.fillna_strategy = fillna_strategy
+        self.aggregate_history = aggregate_history
+        self.shift_periods = shift_periods
+        self.shift_exclude = shift_exclude
+
+        self.validate_arguments()
     
-        if not isinstance(shift_periods, int):
+    def validate_arguments(self):
+        assert self.fillna_strategy in ['raise', 'median', 'mode']
+
+        if self.fillna_strategy == 'raise':
+            raise ValueError("`fillna_strategy` must be either 'median' or 'mode'.")
+
+        if not isinstance(self.shift_periods, int):
             try:
-                shift_periods = int(shift_periods)
+                self.shift_periods = int(self.shift_periods)
             except TypeError:
                 raise ValueError(
                     "`periods` must be an integer, "
-                    f"got {type(shift_periods).__name__}."
+                    f"got {type(self.shift_periods).__name__}."
                 )
-        self.shift_periods = shift_periods
-        self.shift_exclude = shift_exclude
- 
+
     @property
     def ALIAS(self):
         return type(self).__name__.replace('Data', '').lower()
@@ -170,14 +146,15 @@ class Data(ABC):
             hparams = hparam_registry.random_hparams(self.ALIAS, hparams_seed)
         return hparams
     
-    def get_preprocessing_steps(self):
+    def get_preprocessing_steps(self, discretize_continuous_data):
+        # @TODO: Rename the second step (feature_selector).
         return (
-            ('column_transformer', self.get_column_transformer()),
+            ('column_transformer', self.get_column_transformer(discretize_continuous_data)),
             ('feature_selector', self.get_feature_selector())
         )
 
     @abstractmethod
-    def get_column_transformer(self):
+    def get_column_transformer(self, discretize_continuous_data):
         """Get the `ColumnTransformer` object that should be applied to the
         data.
         
@@ -191,42 +168,101 @@ class Data(ABC):
         """
         pass
 
-    @abstractmethod
-    def get_feature_selector(self):
-        pass
+    def _aggregate_history(self, X):
+        X = pd.DataFrame(X)
+        c_group = X.columns[-1]
+        aggregates = []
+        for _, sequence in X.groupby(by=c_group, sort=False):
+            sequence = sequence.drop(columns=c_group)
+            t = 0
+            while t < len(sequence):
+                aggregates += [sequence.iloc[:t+1].max().tolist()]
+                t += 1
+        return np.array(aggregates)
 
-    def get_preprocessor(self, hparams_seed=None):
-        steps = self.get_preprocessing_steps()
+    def get_feature_selector(self):
+        if self.aggregate_history:
+            return FunctionTransformer(self._aggregate_history,
+                                       feature_names_out='one-to-one')
+        else:
+            return None
+
+    def get_preprocessor(self, discretize_continuous_data, hparams_seed=None):
+        steps = self.get_preprocessing_steps(discretize_continuous_data)
         preprocessor = Pipeline(steps)
         params = self._get_preprocessor_params(hparams_seed)
         preprocessor.set_params(**params)
         return preprocessor
 
-    @abstractmethod
-    def load(self):
-        pass
+    def _add_previous_treatment(self, X, data):
+        grouped = data[self.TREATMENT].groupby(data[self.GROUP])
+        previous_treatment = grouped.shift()
+        if self.fillna_strategy == 'median':
+            fillna_value = grouped.first().median()
+        else:
+            fillna_value = grouped.first().mode().iloc[0]
+        if isinstance(self.TREATMENT, list):
+            mapper = {c: 'prev_' + c for c in self.TREATMENT}
+            previous_treatment.rename(columns=mapper, inplace=True)
+            fillna_value = dict(zip(mapper.values(), fillna_value))
+            previous_treatment = previous_treatment.apply('fillna', value=fillna_value)
+        else:
+            previous_treatment.rename('prev_' + self.TREATMENT, inplace=True)
+            previous_treatment.fillna(fillna_value, inplace=True)
+        X = pd.concat([X, previous_treatment], axis=1)
+        return X
 
-    def shift_inputs(self, X, data):
-        grouped_data = data.groupby(self.GROUP)
-        shiftable_columns = list(X.columns)
-        shiftable_columns += self.TREATMENT if isinstance(self.TREATMENT, list) \
-            else [self.TREATMENT]
-        for c in data.columns:
-            if (
-                c in self.shift_exclude or
-                c == self.GROUP or
-                c not in shiftable_columns
-            ):
+    def _remove_previous_treatment(self, X):
+        return X
+
+    def load(self):
+        if self.path.endswith('.csv'):
+            data = pd.read_csv(self.path)
+        elif self.path.endswith('.pkl'):
+            data = pd.read_pickle(self.path)
+        else:
+            file_format = self.path.split('.')[-1]
+            raise ValueError(f"Unknown file format: {file_format}.")
+
+        if self.sample_size is not None:
+            data = self._sample(data)
+
+        if hasattr(self, 'FEATURES'):
+            X = data[self.FEATURES]
+        else:
+            X = data.drop(columns=[self.TREATMENT, self.GROUP])
+        
+        if isinstance(self.TREATMENT, list):
+            Y = data[self.TREATMENT]
+            Y_discrete = Y.apply(discretize_doses, raw=True,
+                                 num_levels=self.num_levels)
+            _, y = np.unique(Y_discrete, axis=0, return_inverse=True)
+        else:
+            y = data[self.TREATMENT]
+        
+        groups = data[self.GROUP]
+
+        if self.include_previous_treatment:
+            X = self._add_previous_treatment(X, data)
+        else:
+            X = self._remove_previous_treatment(X)
+
+        return X, y, groups
+
+    def _shift_inputs(self, X, groups):
+        grouped = X.groupby(groups)
+        for c in X.columns:
+            if c in self.shift_exclude:
                 continue
-            grouped = grouped_data[c]
-            fillna = data[c]
+            fillna = X[c]
             for period in range(1, self.shift_periods + 1):
-                s = shift_variable(grouped, c, period, fillna)
-                X = pd.concat([X, s.to_frame()], axis=1)
+                s = shift_variable(grouped[c], period, fillna)
+                s.reindex(X.index).to_frame()
+                X = pd.concat([X, s], axis=1)
                 fillna = s.squeeze()
         return X
 
-    def sample(self, data):
+    def _sample(self, data):
         r = np.random.RandomState(self.seed)
         sampled_groups = r.choice(
             data[self.GROUP], size=self.sample_size, replace=False
@@ -238,36 +274,68 @@ class Data(ABC):
         le = LabelEncoder().fit(y)
         return le.classes_
 
+    def _split_grouped_data(self, X, y, groups):
+        if isinstance(y, pd.Series):
+            y = y.to_numpy()
+        
+        y = LabelEncoder().fit_transform(y)
+
+        Xg = pd.concat([X, groups], axis=1)
+
+        gss = GroupShuffleSplit(n_splits=1, test_size=self.test_size, 
+                                random_state=self.seed)
+        ii_train, ii_test = next(gss.split(X, y, groups))
+        
+        Xg_train, y_train = Xg.iloc[ii_train], y[ii_train]
+        Xg_test, y_test = Xg.iloc[ii_test], y[ii_test]
+        groups_train = groups.iloc[ii_train]
+
+        if self.valid_size > 0:
+            train_size = 1 - self.test_size
+            _valid_size = self.valid_size / train_size
+            
+            gss = GroupShuffleSplit(n_splits=1, test_size=_valid_size, 
+                                    random_state=self.seed)
+            ii_train, ii_valid = next(gss.split(Xg_train, y_train, groups_train))
+            
+            Xg_valid, y_valid = Xg_train.iloc[ii_valid], y_train[ii_valid]
+            Xg_train, y_train = Xg_train.iloc[ii_train], y_train[ii_train]
+        else:
+            Xg_valid, y_valid = None, None
+
+        data_train = (Xg_train, y_train)
+        data_valid = (Xg_valid, y_valid)
+        data_test = (Xg_test, y_test)
+
+        return data_train, data_valid, data_test
+
     def get_splits(self):
         X, y, groups = self.load()
-        args = (X, y, groups, self.valid_size, self.test_size, self.seed)
-        return _split_grouped_data(*args)
+        if self.shift_periods > 0:
+            # We shift the data here and not in `self.load` because we want to
+            # load all datasets in the same way. For the RA data, we need to
+            # remove non-registry visits before shifting the data.
+            X = self._shift_inputs(X, groups)
+        return self._split_grouped_data(X, y, groups)
 
 
 class RAData(Data):
     TREATMENT = 'therapy'
     GROUP = 'id'
 
-    THERAPIES = [
-        'csdmard',
-        'tnfi',
-        'abatacept',
-        'rituximab',
-        'il-6',
-        'jaki'
-    ]
-
-    def __init__(self, *, include_therapy_history=False, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.include_therapy_history = include_therapy_history
 
-    def get_column_transformer(self):
+    def get_column_transformer(self, discretize_continuous_data):
         # Numerical columns.
         numerical_column_selector = make_column_selector(dtype_include='float64')
-        numerical_column_steps = [
-            ('imputer', SimpleImputer(strategy='mean')),
-            ('encoder', KBinsDiscretizer(subsample=None))  # Pass a seed if `subsample != None`!
-        ]
+        numerical_column_steps = [('imputer', SimpleImputer(strategy='mean'))]
+        if discretize_continuous_data:
+            numerical_column_steps += [
+                ('encoder', KBinsDiscretizer(subsample=None))  # Pass a seed if `subsample != None`!
+            ]
+        else:
+            numerical_column_steps += [('encoder', StandardScaler())]
         numerical_column_pipeline = Pipeline(numerical_column_steps)
 
         # Categorical columns.
@@ -294,54 +362,14 @@ class RAData(Data):
                 ('categorical_transformer', categorical_column_pipeline, categorical_column_selector),
                 ('boolean_transformer', boolean_column_pipeline, boolean_column_selector)
             ],
-            remainder='passthrough'  # Passthrough the group column
+            remainder='passthrough'
         )
 
-    def get_feature_selector(self):
-        return None
-
-    def shift_inputs(self, X, data):
-        registry_data = data.loc[~data.visitdate.isna()]
-        grouped_registry_data = registry_data.groupby(self.GROUP)
-        shiftable_columns = list(X.columns) + [self.TREATMENT]
-        for c in data.columns:
-            if (
-                c in self.shift_exclude or
-                c == self.GROUP or
-                c not in shiftable_columns
-            ):
-                continue
-            if c == 'therapy':
-                grouped = data[c].groupby(data[self.GROUP])
-                fillna = data[c]
-            else:
-                grouped = grouped_registry_data[c]
-                fillna = registry_data[c]
-            for period in range(1, self.shift_periods + 1):
-                s = shift_variable(grouped, c, period, fillna)
-                s.reindex(data.index).to_frame()
-                X = pd.concat([X, s], axis=1)
-                fillna = s.squeeze()
-        return X
-
     def load(self):
-        data = pd.read_pickle(self.path)
+        X, y, groups = super().load()
 
-        if self.sample_size is not None:
-            data = self.sample(data)
-
-        X = data.drop(columns=[self.TREATMENT, self.GROUP, 'visitdate'])
-        y = data[self.TREATMENT]
-        groups = data[self.GROUP]
-
-        if not self.include_therapy_history:
-            X = X.drop(columns=map(lambda t: f'hx{t}', self.THERAPIES))
-
-        if self.shift_periods > 0:
-            X = self.shift_inputs(X, data)
-        
-        is_registry_visit = ~data.visitdate.isna()
-        X = X.loc[is_registry_visit]
+        is_registry_visit = ~X.visitdate.isna()
+        X = X.loc[is_registry_visit].drop(columns='visitdate')
         y = y.loc[is_registry_visit]
         groups = groups.loc[is_registry_visit]
 
@@ -355,13 +383,16 @@ class ADNIData(Data):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def get_column_transformer(self):
+    def get_column_transformer(self, discretize_continuous_data):
         # Numerical columns.
         numerical_column_selector = make_column_selector(dtype_include='float64')
-        numerical_column_steps = [
-            ('imputer', None),
-            ('encoder', KBinsDiscretizer(subsample=None))
-        ]
+        numerical_column_steps = [('imputer', None)]
+        if discretize_continuous_data:
+            numerical_column_steps += [
+                ('encoder', KBinsDiscretizer(subsample=None))
+            ]
+        else:
+            numerical_column_steps += [('encoder', StandardScaler())]
         numerical_column_pipeline = Pipeline(numerical_column_steps)
 
         # Categorical columns.
@@ -379,36 +410,14 @@ class ADNIData(Data):
                 ('numerical_transformer', numerical_column_pipeline, numerical_column_selector),
                 ('categorical_transformer', categorical_column_pipeline, categorical_column_selector),
             ],
-            remainder='passthrough'  # Passthrough the group column
+            remainder='passthrough'
         )
 
-    def get_feature_selector(self):
-        return None
+    def _get_previous_treatment(self, X, data):
+        return X
     
-    def load(self):
-        data = pd.read_csv(
-            self.path,
-            dtype={
-                'RID': 'object',
-                'CDRSB_cat': 'category',
-                'MRI_previous_outcome': 'category',
-                'MRI_ordered': 'int64',
-                'AGE': 'float64',
-                'PTGENDER': 'category',
-                'PTMARRY': 'category',
-                'PTEDUCAT': 'float64',
-                'APOE4': 'category'
-            }
-        )
-
-        X = data.drop(columns=[self.TREATMENT, self.GROUP])
-        y = data[self.TREATMENT]
-        groups = data[self.GROUP]
-
-        if self.shift_periods > 0:
-            X = self.shift_inputs(X, data)
-
-        return X, y, groups
+    def _remove_previous_treatment(self, X):
+        return X.drop(columns='MRI_previous_outcome')
 
 
 class SwitchData(RAData):
@@ -469,7 +478,9 @@ class SepsisData(Data):
         'input_4hourly',
         'output_total',
         'output_4hourly',
-        'max_dose_vaso'
+        'max_dose_vaso',
+        'prev_input_4hourly',
+        'pev_max_dose_vaso'
     ]
     SCALE = [
         'age',
@@ -517,9 +528,12 @@ class SepsisData(Data):
     def get_scale_transformer(self):
         return make_pipeline(StandardScaler())
 
+    def _add_log(self, x):
+        return np.log(0.1 + x)
+
     def get_log_scale_transformer(self):
         return make_pipeline(
-            FunctionTransformer(_add_log, feature_names_out='one-to-one'),
+            FunctionTransformer(self._add_log, feature_names_out='one-to-one'),
             StandardScaler()
         )
 
@@ -541,31 +555,10 @@ class SepsisData(Data):
             log_scaled_columns += [f'{c}_{period}' for c in self.LOG_SCALE]
         return sorted(list(set(X).intersection(log_scaled_columns)))
 
-    def get_column_transformer(self):
+    def get_column_transformer(self, discretize_continuous_data):
         return make_column_transformer(
             (self.get_shift_transformer(), self.get_shifted_columns),
             (self.get_scale_transformer(), self.get_scaled_columns),
             (self.get_log_scale_transformer(), self.get_log_scaled_columns),
             remainder='passthrough'
         )
-
-    def get_feature_selector(self):
-            return None
-
-    def load(self):
-        data = pd.read_csv(self.path)
-
-        if self.sample_size is not None:
-            data = self.sample(data)
-
-        X = data[self.FEATURES]
-        groups = data[self.GROUP]
-
-        Y = data[self.TREATMENT]
-        Y_discrete = Y.apply(discretize_doses, raw=True, num_levels=self.num_levels)
-        _, y = np.unique(Y_discrete, axis=0, return_inverse=True)
-
-        if self.shift_periods > 0:
-            X = self.shift_inputs(X, data)
-        
-        return X, y, groups

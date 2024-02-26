@@ -52,10 +52,13 @@ def _check_fit_preprocessor(preprocessor, X=None, y=None):
 def _get_feature_names(preprocessor, X=None, y=None, trim=True):
     preprocessor = _check_fit_preprocessor(preprocessor, X, y)
     feature_names = preprocessor.get_feature_names_out()
+    remainders = [n for n in feature_names if n.startswith('remainder')]
+    assert len(remainders) == 1  # Only the groups should be left
     if trim:
-        return np.array([s.split('__')[1] for s in feature_names])
+        feature_names = [s.split('__')[1] for s in feature_names if not s in remainders]
     else:
-        return feature_names
+        feature_names = [s for s in feature_names if not s in remainders]
+    return np.array(feature_names)
 
 
 def _separate_switches(preprocessor, treatment, X, y):
@@ -78,15 +81,18 @@ def train(config, estimator_name):
 
     data_handler = get_data_handler_from_config(config)
 
+    if data_handler.aggregate_history:
+        assert not expects_groups(estimator)
+
     data_train, data_valid, _ = data_handler.get_splits()
     X_train, y_train = data_train
     X_valid, y_valid = data_valid
 
     if estimator_name.startswith('truncated'):
-        X_train = drop_shifted_columns(X_train, data_handler.TREATMENT)
-        X_valid = drop_shifted_columns(X_valid, data_handler.TREATMENT)
+        X_train = drop_shifted_columns(X_train)
+        X_valid = drop_shifted_columns(X_valid)
 
-    if not expects_groups(estimator):
+    if not expects_groups(estimator) and not data_handler.aggregate_history:
         X_train = X_train.drop(columns=data_handler.GROUP)
         X_valid = X_valid.drop(columns=data_handler.GROUP)
 
@@ -151,9 +157,9 @@ def predict(
         X, y = data_test
     
     if estimator_name.startswith('truncated'):
-        X = drop_shifted_columns(X, data_handler.TREATMENT)
+        X = drop_shifted_columns(X)
     
-    if not expects_groups(pipeline[-1]):
+    if not expects_groups(pipeline[-1]) and not data_handler.aggregate_history:
        X = X.drop(columns=data_handler.GROUP)
 
     metrics = [
