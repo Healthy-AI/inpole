@@ -8,7 +8,8 @@ from .models import (
     SwitchPropensityEstimator,
     RiskSlimClassifier,
     FasterRiskClassifier,
-    FRLClassifier
+    FRLClassifier,
+    RuleFitClassifier
 )
 from .data.data import get_data_handler_from_config
 from .data.utils import drop_shifted_columns
@@ -53,7 +54,7 @@ def _get_feature_names(preprocessor, X=None, y=None, trim=True):
     preprocessor = _check_fit_preprocessor(preprocessor, X, y)
     feature_names = preprocessor.get_feature_names_out()
     remainders = [n for n in feature_names if n.startswith('remainder')]
-    assert len(remainders) == 1  # Only the groups should be left
+    assert len(remainders) <= 1
     if trim:
         feature_names = [s.split('__')[1] for s in feature_names if not s in remainders]
     else:
@@ -108,7 +109,7 @@ def train(config, estimator_name):
         fit_params['estimator__feature_names'] = feature_names
         fit_params['estimator__outcome_name'] = outcome_name
     
-    if isinstance(estimator, FasterRiskClassifier):
+    if isinstance(estimator, FasterRiskClassifier) or isinstance(estimator, RuleFitClassifier):
         feature_names = _get_feature_names(preprocessor, X_train, y_train)
         fit_params['estimator__feature_names'] = feature_names
     

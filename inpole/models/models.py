@@ -1145,7 +1145,7 @@ class RuleFitClassifier(ClassifierMixin, rulefit.RuleFit):
             random_state=random_state
         )
 
-    def fit(self, X, y, feature_names, **kwargs):
+    def fit(self, X, y, feature_names=None, **kwargs):
         super().fit(X, y, feature_names, **kwargs)
         self.classes_ = np.unique(y)
         return self
