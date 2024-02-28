@@ -2,15 +2,16 @@
 Data handler for each experiment.
 """
 
+from copy import deepcopy
 from abc import ABC, abstractmethod
 
 import numpy as np
 import pandas as pd
 from scipy.stats import rankdata
 
+import sklearn.preprocessing as preprocessing
 from sklearn.model_selection import GroupShuffleSplit
 from sklearn.preprocessing import (
-    FunctionTransformer,
     MinMaxScaler,
     StandardScaler,
     OneHotEncoder,
@@ -83,6 +84,15 @@ def discretize_doses(doses, num_levels):
     return discrete_doses
 
 
+class FunctionTransformer(preprocessing.FunctionTransformer):
+    def fit(self, X, y, agg_index=None):
+        if self.kw_args is None:
+            self.kw_args = {'agg_index': agg_index}
+        else:
+            self.kw_args['agg_index'] = agg_index
+        return super().fit(X, y)
+
+
 class Data(ABC):
     def __init__(
         self,
@@ -92,8 +102,10 @@ class Data(ABC):
         seed=None,
         sample_size=None,
         include_previous_treatment=True,
-        fillna_strategy='raise',
+        fillna_value=None,
         aggregate_history=False,
+        add_current_context=False,
+        aggregate_exclude=None,
         shift_periods=0,
         shift_exclude=None,
     ):
@@ -103,19 +115,16 @@ class Data(ABC):
         self.seed = seed
         self.sample_size = sample_size
         self.include_previous_treatment = include_previous_treatment
-        self.fillna_strategy = fillna_strategy
+        self.fillna_value = fillna_value
         self.aggregate_history = aggregate_history
+        self.add_current_context = add_current_context
+        self.aggregate_exclude = aggregate_exclude
         self.shift_periods = shift_periods
         self.shift_exclude = shift_exclude
 
         self.validate_arguments()
     
     def validate_arguments(self):
-        assert self.fillna_strategy in ['raise', 'median', 'mode']
-
-        if self.fillna_strategy == 'raise':
-            raise ValueError("`fillna_strategy` must be either 'median' or 'mode'.")
-
         if not isinstance(self.shift_periods, int):
             try:
                 self.shift_periods = int(self.shift_periods)
@@ -168,7 +177,9 @@ class Data(ABC):
         """
         pass
 
-    def _aggregate_history(self, X):
+    def _aggregate_history(self, X, agg_index):
+        def func(x):
+            return x.max() if x.name in X.columns[agg_index] else x.iat[-1]
         X = pd.DataFrame(X)
         c_group = X.columns[-1]
         aggregates = []
@@ -176,7 +187,7 @@ class Data(ABC):
             sequence = sequence.drop(columns=c_group)
             t = 0
             while t < len(sequence):
-                aggregates += [sequence.iloc[:t+1].max().tolist()]
+                aggregates += [sequence.iloc[:t+1].apply(func)]
                 t += 1
         return np.array(aggregates)
 
@@ -197,18 +208,22 @@ class Data(ABC):
     def _add_previous_treatment(self, X, data):
         grouped = data[self.TREATMENT].groupby(data[self.GROUP])
         previous_treatment = grouped.shift()
-        if self.fillna_strategy == 'median':
-            fillna_value = grouped.first().median()
-        else:
-            fillna_value = grouped.first().mode().iloc[0]
         if isinstance(self.TREATMENT, list):
             mapper = {c: 'prev_' + c for c in self.TREATMENT}
             previous_treatment.rename(columns=mapper, inplace=True)
+            if not isinstance(self.fillna_value, list):
+                fillna_value = [self.fillna_value] * len(self.TREATMENT)
+            else:
+                fillna_value = self.fillna_value
+            assert len(fillna_value) == len(self.TREATMENT)
             fillna_value = dict(zip(mapper.values(), fillna_value))
+            # @TODO: Handle the case when `previous_treatment` is a pandas Categorical.
             previous_treatment = previous_treatment.apply('fillna', value=fillna_value)
         else:
             previous_treatment.rename('prev_' + self.TREATMENT, inplace=True)
-            previous_treatment.fillna(fillna_value, inplace=True)
+            if not self.fillna_value in previous_treatment.cat.categories:
+                previous_treatment = previous_treatment.cat.add_categories(self.fillna_value)
+            previous_treatment.fillna(self.fillna_value, inplace=True)
         X = pd.concat([X, previous_treatment], axis=1)
         return X
 
@@ -231,6 +246,8 @@ class Data(ABC):
             X = data[self.FEATURES]
         else:
             X = data.drop(columns=[self.TREATMENT, self.GROUP])
+
+        assert not any(['agg' in c for c in X.columns])
         
         if isinstance(self.TREATMENT, list):
             Y = data[self.TREATMENT]
@@ -246,7 +263,16 @@ class Data(ABC):
             X = self._add_previous_treatment(X, data)
         else:
             X = self._remove_previous_treatment(X)
-
+        
+        if self.aggregate_history:
+            X_agg = X.drop(columns=self.aggregate_exclude) \
+                if self.add_current_context else X
+            mapper = {c: f'{c}_agg' for c in X_agg.columns}
+            X_agg = X_agg.rename(mapper, axis=1)
+            if self.add_current_context:
+                X_agg = pd.concat([X_agg, X], axis=1)
+            X = X_agg
+        
         return X, y, groups
 
     def _shift_inputs(self, X, groups):
@@ -413,7 +439,7 @@ class ADNIData(Data):
             remainder='passthrough'
         )
 
-    def _get_previous_treatment(self, X, data):
+    def _add_previous_treatment(self, X, data):
         return X
     
     def _remove_previous_treatment(self, X):
@@ -424,12 +450,17 @@ class SwitchData(RAData):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
     
+    def _add_previous_treatment(self, X, data):
+        return X
+    
     def load(self):
         X, y, groups = super().load()
         y_encoded = LabelEncoder().fit_transform(y)
         y = pd.Series(y_encoded, index=y.index, name=y.name)
         y = y.groupby(groups).diff().fillna(0)
         y = (y != 0).astype(int)
+        if self.include_previous_treatment:
+            X['prev_switch'] = y.groupby(groups).shift(fill_value=0).astype(bool)
         return X, y, groups
 
 
@@ -538,21 +569,27 @@ class SepsisData(Data):
         )
 
     def get_shifted_columns(self, X):
-        shifted_columns = self.SHIFT
+        shifted_columns = deepcopy(self.SHIFT)
         for period in range(1, self.shift_periods + 1):
             shifted_columns += [f'{c}_{period}' for c in self.SHIFT]
+        if self.aggregate_history and self.add_current_context:
+            shifted_columns = [f'{c}_agg' for c in self.SHIFT]
         return sorted(list(set(X).intersection(shifted_columns)))
 
     def get_scaled_columns(self, X):
-        scaled_columns = self.SCALE
+        scaled_columns = deepcopy(self.SCALE)
         for period in range(1, self.shift_periods + 1):
             scaled_columns += [f'{c}_{period}' for c in self.SCALE]
+        if self.aggregate_history and self.add_current_context:
+            scaled_columns = [f'{c}_agg' for c in self.SCALE]
         return sorted(list(set(X).intersection(scaled_columns)))
 
     def get_log_scaled_columns(self, X):
-        log_scaled_columns = self.LOG_SCALE
+        log_scaled_columns = deepcopy(self.LOG_SCALE)
         for period in range(1, self.shift_periods + 1):
             log_scaled_columns += [f'{c}_{period}' for c in self.LOG_SCALE]
+        if self.aggregate_history and self.add_current_context:
+            log_scaled_columns = [f'{c}_agg' for c in self.LOG_SCALE]
         return sorted(list(set(X).intersection(log_scaled_columns)))
 
     def get_column_transformer(self, discretize_continuous_data):

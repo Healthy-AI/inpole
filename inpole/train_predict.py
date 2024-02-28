@@ -98,6 +98,13 @@ def train(config, estimator_name):
         X_valid = X_valid.drop(columns=data_handler.GROUP)
 
     fit_params = {}
+
+    if data_handler.aggregate_history and data_handler.add_current_context:
+        preprocessor = _check_fit_preprocessor(preprocessor, X_train, y_train)
+        ct = preprocessor.named_steps['column_transformer']
+        ct_feature_names = ct.get_feature_names_out()
+        agg_index = [i for i, s in enumerate(ct_feature_names) if '_agg' in s]
+        fit_params['preprocessor__feature_selector__agg_index'] = agg_index
     
     if is_net_estimator(estimator_name):
         fit_params['estimator__X_valid'] = X_valid
