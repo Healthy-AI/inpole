@@ -9,6 +9,7 @@ from amhelpers.amhelpers import create_results_dir_from_config
 
 from inpole import ESTIMATORS
 from inpole.train_predict import train, predict
+from inpole.data import get_data_handler_from_config
 
 
 if __name__ == '__main__':
@@ -56,3 +57,30 @@ if __name__ == '__main__':
         for subset in subsets:
             predict(config, pipeline, args.estimator, subset,
                     metrics=metrics, switches_only=True)
+    
+    if args.estimator == 'sdt' or args.estimator =='rdt':
+        preprocessor, estimator = pipeline.named_steps.values()
+
+        feature_names = preprocessor.get_feature_names_out()
+        feature_names = [s.split('__')[1] for s in feature_names]
+
+        data_handler = get_data_handler_from_config(config)
+        labels = data_handler.get_labels()
+
+        estimator.align_axes()
+        estimator.save_tree(feature_names, labels, suffix='_before_pruning')
+
+        for subset in subsets:
+            predict(config, pipeline, f'{args.estimator}_aligned', subset, 
+                    metrics=metrics)
+
+        X_valid, y_valid = data_handler.get_splits()[1]
+        Xt_valid = preprocessor.transform(X_valid)
+        _, all_path_probas, _ = estimator.forward(Xt_valid)
+        
+        estimator.prune_tree(all_path_probas)
+        estimator.save_tree(feature_names, labels, suffix='_after_pruning')
+
+        for subset in subsets:
+            predict(config, pipeline, f'{args.estimator}_pruned', subset, 
+                    metrics=metrics)
