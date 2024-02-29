@@ -21,7 +21,7 @@ from . import (
 
 
 ALL_NET_ESTIMATORS = NET_ESTIMATORS | RECURRENT_NET_ESTIMATORS
-
+CPLEX_PARAM_VALUE_BOUND = 20e8
 
 _require_categorical_inputs = [
     'sdt',
@@ -73,7 +73,10 @@ def _get_estimator_params(config, estimator_name, input_dim=None, output_dim=Non
             }
         )
     else:
-        params = {'random_state': config['estimators']['seed']}
+        seed = config['estimators']['seed']
+        if estimator_name == 'riskslim' and seed > CPLEX_PARAM_VALUE_BOUND:
+            seed = int(seed - CPLEX_PARAM_VALUE_BOUND)
+        params = {'random_state': seed}
     
     params.update(hparams)
 
