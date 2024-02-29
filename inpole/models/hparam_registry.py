@@ -68,7 +68,7 @@ def _hparams(estimator_name, experiment, seed):
         _hparam('w_pos', 1, lambda r: r.choice([1, 2, 3, 4, 5]))
 
     if estimator_name == 'rulefit':
-        _hparam('tree_size', 4, lambda r: r.choice([1, 2, 3, 4, 5]))
+        _hparam('tree_size', 4, lambda r: r.choice([2, 3, 4, 5]))
         _hparam('max_rules', 30, lambda r: r.choice([10, 20, 30, 50, 75, 100]))
         _hparam('model_type', 'rl', lambda r: 'rl')
         _hparam('lin_standardise', False, lambda r: False)
