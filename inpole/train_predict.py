@@ -9,7 +9,8 @@ from .models import (
     RiskSlimClassifier,
     FasterRiskClassifier,
     FRLClassifier,
-    RuleFitClassifier
+    RuleFitClassifier,
+    CalibratedClassifierCV
 )
 from .data.data import get_data_handler_from_config
 from .data.utils import drop_shifted_columns
@@ -76,7 +77,7 @@ def _separate_switches(preprocessor, treatment, X, y):
     return Xt[switch], y[switch]
 
 
-def train(config, estimator_name):
+def train(config, estimator_name, calibrate=False):
     pipeline = create_pipeline(config, estimator_name)
     preprocessor, estimator = pipeline.named_steps.values()
 
@@ -130,7 +131,13 @@ def train(config, estimator_name):
         prev_therapy_index = _get_previous_therapy_index(feature_names, prefix)
         fit_params['estimator__prev_therapy_index'] = prev_therapy_index
 
-    return pipeline.fit(X_train, y_train, **fit_params)
+    pipeline.fit(X_train, y_train, **fit_params)
+
+    if calibrate:
+        pipeline = CalibratedClassifierCV(pipeline, method='isotonic', cv='prefit')
+        pipeline.fit(X_valid, y_valid)
+    
+    return pipeline
 
 
 def collect_scores(model, X, y, metrics, columns=[], data=[], labels=None):
@@ -166,8 +173,11 @@ def predict(
     
     if estimator_name.startswith('truncated'):
         X = drop_shifted_columns(X)
+
+    estimator = pipeline.estimator[-1] \
+        if isinstance(pipeline, CalibratedClassifierCV) else pipeline[-1]
     
-    if not expects_groups(pipeline[-1]) and not data_handler.aggregate_history:
+    if not expects_groups(estimator) and not data_handler.aggregate_history:
        X = X.drop(columns=data_handler.GROUP)
 
     metrics = [
@@ -180,6 +190,7 @@ def predict(
     labels = data_handler.get_labels()
 
     if switches_only:
+        assert not isinstance(pipeline, CalibratedClassifierCV)
         preprocessor = pipeline.named_steps['preprocessor']
         treatment = data_handler.TREATMENT
         Xt_s, y_s = _separate_switches(preprocessor, treatment, X, y)

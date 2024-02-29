@@ -18,6 +18,7 @@ if __name__ == '__main__':
     parser.add_argument('--estimator', type=str, choices=ESTIMATORS, required=True)
     parser.add_argument('--new_out_dir', action='store_true')
     parser.add_argument('--predict_only', action='store_true')
+    parser.add_argument('--calibrate', action='store_true')
     args = parser.parse_args()
 
     config = load_config(args.config_path)
@@ -36,7 +37,7 @@ if __name__ == '__main__':
     if args.predict_only:
         pipeline = joblib.load(f_pipeline)
     else:
-        pipeline = train(config, args.estimator)
+        pipeline = train(config, args.estimator, args.calibrate)
         joblib.dump(pipeline, f_pipeline)
         if 'sdt' in args.estimator or 'rdt' in args.estimator:
             # Delete saved history objects.

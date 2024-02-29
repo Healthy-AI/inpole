@@ -24,6 +24,7 @@ from skorch.dataset import unpack_data, get_len
 
 import sklearn.linear_model as lm
 import sklearn.dummy as dummy
+import sklearn.calibration as calibration
 import sklearn.tree as tree
 import sklearn.metrics as metrics
 from sklearn.base import BaseEstimator
@@ -73,7 +74,8 @@ __all__ = [
     'FRLClassifier',
     'TruncatedRNNClassifier',
     'TruncatedProSeNetClassifier',
-    'TruncatedRDTClassifier'
+    'TruncatedRDTClassifier',
+    'CalibratedClassifierCV',
 ]
 
 
@@ -898,18 +900,18 @@ class DecisionTreeClassifier(ClassifierMixin, tree.DecisionTreeClassifier):
         ccp_alpha=0.0
     ):
         super().__init__(
-            criterion='gini',
-            splitter='best',
-            max_depth=None,
-            min_samples_split=2,
-            min_samples_leaf=1,
-            min_weight_fraction_leaf=0.0,
-            max_features=None,
-            random_state=None,
-            max_leaf_nodes=None,
-            min_impurity_decrease=0.0,
-            class_weight=None,
-            ccp_alpha=0.0
+            criterion=criterion,
+            splitter=splitter,
+            max_depth=max_depth,
+            min_samples_split=min_samples_split,
+            min_samples_leaf=min_samples_leaf,
+            min_weight_fraction_leaf=min_weight_fraction_leaf,
+            max_features=max_features,
+            random_state=random_state,
+            max_leaf_nodes=max_leaf_nodes,
+            min_impurity_decrease=min_impurity_decrease,
+            class_weight=class_weight,
+            ccp_alpha=ccp_alpha
         )
 
 
@@ -1484,3 +1486,22 @@ class FRLClassifier(ClassifierMixin):
             elif rule in row_set:
                 return index
         return None
+
+
+class CalibratedClassifierCV(ClassifierMixin, calibration.CalibratedClassifierCV):
+    def __init__(
+        self,
+        estimator=None,
+        *,
+        method='sigmoid',
+        cv=None,
+        n_jobs=None,
+        ensemble=True,
+    ):
+        super().__init__(
+            estimator=estimator,
+            method=method,
+            cv=cv,
+            n_jobs=n_jobs,
+            ensemble=ensemble
+        )
