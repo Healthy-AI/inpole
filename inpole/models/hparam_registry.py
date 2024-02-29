@@ -81,7 +81,17 @@ def _hparams(estimator_name, experiment, seed):
     if experiment in ['ra', 'switch'] and estimator_name not in OTHER_ESTIMATORS:
         _hparam('lr', 1.0e-3, lambda r: 10. ** r.choice([-3, -2]))
         _hparam('max_epochs', 50, lambda r: 50)
+    
+    if experiment in ['ra', 'switch'] and estimator_name in ['sdt', 'mlp', 'pronet']:
+        _hparam('batch_size', 128, lambda r: r.choice([128, 256]))
+
+    if experiment in ['ra', 'switch'] and estimator_name in ['rdt', 'rnn', 'prosenet']:
         _hparam('batch_size', 32, lambda r: r.choice([32, 64]))
+
+    if experiment in ['ra', 'switch'] and estimator_name in [
+        'truncated_rdt', 'truncated_rnn', 'truncated_prosenet'
+    ]:
+        _hparam('batch_size', 64, lambda r: r.choice([64, 128]))
     
     if experiment == 'ra' and estimator_name in [
         'pronet', 'prosenet', 'truncated_prosenet'
