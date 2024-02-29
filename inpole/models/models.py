@@ -1275,8 +1275,11 @@ class RiskSlimClassifier(ClassifierMixin):
         self.intercept_ = model_info['solution'][0]
         self.coef_ = model_info['solution'][1:]
         self.classes_ = np.unique(y)
-        risk_table = riskslim.utils.print_model(model_info['solution'], data)
-        self.risk_list = risk_table.get_string()
+        try:
+            risk_table = riskslim.utils.print_model(model_info['solution'], data)
+            self.risk_list = risk_table.get_string()
+        except ValueError:
+            self.risk_list = None
     
     def decision_function(self, X):
         return self.intercept_ + np.dot(X, self.coef_)
