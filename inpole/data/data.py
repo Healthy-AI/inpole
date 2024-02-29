@@ -559,7 +559,8 @@ class SepsisData(Data):
 
     def get_log_scale_transformer(self):
         return make_pipeline(
-            FunctionTransformer(self._add_log, feature_names_out='one-to-one'),
+            preprocessing.FunctionTransformer(self._add_log, 
+                                              feature_names_out='one-to-one'),
             StandardScaler()
         )
 
