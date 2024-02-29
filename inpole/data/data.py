@@ -450,17 +450,12 @@ class SwitchData(RAData):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
     
-    def _add_previous_treatment(self, X, data):
-        return X
-    
     def load(self):
         X, y, groups = super().load()
         y_encoded = LabelEncoder().fit_transform(y)
         y = pd.Series(y_encoded, index=y.index, name=y.name)
         y = y.groupby(groups).diff().fillna(0)
         y = (y != 0).astype(int)
-        if self.include_previous_treatment:
-            X['prev_switch'] = y.groupby(groups).shift(fill_value=0).astype(bool)
         return X, y, groups
 
 
