@@ -1,4 +1,3 @@
-import os
 import copy
 import math
 import warnings
@@ -77,6 +76,27 @@ __all__ = [
     'TruncatedRDTClassifier',
     'CalibratedClassifierCV',
 ]
+
+
+def get_model_complexity(model):
+    if isinstance(model, LogisticRegression):
+        return np.count_nonzero(model.coef_)
+    if isinstance(model, RiskSlimClassifier):
+        return np.count_nonzero(model.coef_)
+    elif isinstance(model, FRLClassifier):
+        return sum(len(rule) for rule in model.rule_list if isinstance(rule, tuple))
+    elif isinstance(model, RuleFitClassifier):
+        return np.count_nonzero(model.coef_)
+    elif isinstance(model, (ProNetClassifier, ProSeNetClassifier)):
+        return model.module_.num_prototypes
+    elif isinstance(model, (MLPClassifier, RNNClassifier)):
+        return sum(p.numel() for p in model.module_.parameters() if p.requires_grad)
+    elif isinstance(model, DecisionTreeClassifier):
+        return model.get_n_leaves()
+    elif isinstance(model, (SDTClassifer, RDTClassifer)):
+        return len(model.tree_.leaf_nodes)
+    else:
+        raise ValueError(f"Unsupported model {type(model).__name__}.")
 
 
 class EpochScoring(cbs.EpochScoring):

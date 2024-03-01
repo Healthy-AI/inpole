@@ -4,6 +4,7 @@ from pathlib import Path
 from datetime import timedelta
 from os.path import join
 
+import joblib
 import pandas as pd
 import numpy as np
 import colorcet as cc
@@ -17,6 +18,8 @@ from amhelpers.config_parsing import load_config
 
 from inpole.pipeline import _get_estimator_params
 from inpole.utils import merge_dicts
+from inpole.models.models import get_model_complexity
+
 
 def visualize_encodings(encodings, prototype_indices, frac=0.1, 
                         annotations=None, figsize=(6,4)):
@@ -166,9 +169,9 @@ def get_params_and_scores(sweep_path, estimator_name, trials=None):
         
         for d in sorted(Path(trial_path).iterdir()):
             exp = str(d).split('/')[-1]  # `exp` is on the form estimator_XX
-            n = '_'.join(exp.split('_')[:-1])  # Get the estimator name
+            name = '_'.join(exp.split('_')[:-1])  # Get the estimator name
             
-            if n == estimator_name:
+            if name == estimator_name:
                 try:
                     scores_path = join(d, 'scores.csv')
                     _scores = pd.read_csv(scores_path)
@@ -241,3 +244,31 @@ def inspect_hyperparameters(sweep_path, estimator_name, metric='auc',
                     ax.scatter(score, value, color=color)
             except ValueError:
                 warnings.warn(f"Failed to plot parameter value {value}.")
+
+
+def get_model_complexities_and_scores(trial_path, estimator_name, metric='auc'):
+    complexities, scores = [], []
+
+    for experiment_dir in os.listdir(trial_path):
+        exp = experiment_dir.split('/')[-1]  # `exp` is on the form estimator_XX
+        name = '_'.join(exp.split('_')[:-1])  # Get the estimator name
+        
+        if name == estimator_name:
+            pipeline_path = join(trial_path, experiment_dir, 'pipeline.pkl')
+            if os.path.exists(pipeline_path):
+                pipeline = joblib.load(pipeline_path)
+                estimator = pipeline.named_steps['estimator']
+                complexity = get_model_complexity(estimator)
+            else:
+                complexity = None
+            complexities.append(complexity)
+            
+            scores_path = join(trial_path, experiment_dir, 'scores.csv')
+            if os.path.exists(scores_path):
+                s = pd.read_csv(scores_path)
+                score = s[s.subset == 'test'][metric].item()
+            else:
+                score = None
+            scores.append(score)
+
+    return complexities, scores
