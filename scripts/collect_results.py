@@ -12,6 +12,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     def score_sorter(df, metric):
+        estimator = df.estimator_name[0]
+        if estimator in ['sdt', 'rdt', 'truncated_rdt']:
+            return df[
+                (df.subset == 'valid') &
+                (df.estimator_name == f'{estimator}_aligned')
+            ][metric].item()
         return df[df.subset == 'valid'][metric].item()
     
     config_path = join(args.experiment_path, 'default_config.yaml')
