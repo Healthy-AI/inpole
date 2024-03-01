@@ -39,7 +39,7 @@ if __name__ == '__main__':
     else:
         pipeline = train(config, args.estimator, args.calibrate)
         joblib.dump(pipeline, f_pipeline)
-        if 'sdt' in args.estimator or 'rdt' in args.estimator:
+        if args.estimator in ['sdt', 'rdt', 'truncated_rdt']:
             # Delete saved history objects.
             results_path = config['results']['path']
             for root, _, files in os.walk(results_path):
@@ -59,7 +59,7 @@ if __name__ == '__main__':
             predict(config, pipeline, args.estimator, subset,
                     metrics=metrics, switches_only=True)
     
-    if args.estimator == 'sdt' or args.estimator =='rdt':
+    if args.estimator in ['sdt', 'rdt', 'truncated_rdt']:
         preprocessor, estimator = pipeline.named_steps.values()
 
         feature_names = preprocessor.get_feature_names_out()
