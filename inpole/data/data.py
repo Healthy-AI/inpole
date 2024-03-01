@@ -155,15 +155,15 @@ class Data(ABC):
             hparams = hparam_registry.random_hparams(self.ALIAS, hparams_seed)
         return hparams
     
-    def get_preprocessing_steps(self, discretize_continuous_data):
+    def get_preprocessing_steps(self, cont_feat_trans):
         # @TODO: Rename the second step (feature_selector).
         return (
-            ('column_transformer', self.get_column_transformer(discretize_continuous_data)),
+            ('column_transformer', self.get_column_transformer(cont_feat_trans)),
             ('feature_selector', self.get_feature_selector())
         )
 
     @abstractmethod
-    def get_column_transformer(self, discretize_continuous_data):
+    def get_column_transformer(self, cont_feat_trans):
         """Get the `ColumnTransformer` object that should be applied to the
         data.
         
@@ -198,8 +198,8 @@ class Data(ABC):
         else:
             return None
 
-    def get_preprocessor(self, discretize_continuous_data, hparams_seed=None):
-        steps = self.get_preprocessing_steps(discretize_continuous_data)
+    def get_preprocessor(self, cont_feat_trans, hparams_seed=None):
+        steps = self.get_preprocessing_steps(cont_feat_trans)
         preprocessor = Pipeline(steps)
         params = self._get_preprocessor_params(hparams_seed)
         preprocessor.set_params(**params)
@@ -352,16 +352,18 @@ class RAData(Data):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def get_column_transformer(self, discretize_continuous_data):
+    def get_column_transformer(self, cont_feat_trans):
         # Numerical columns.
         numerical_column_selector = make_column_selector(dtype_include='float64')
         numerical_column_steps = [('imputer', SimpleImputer(strategy='mean'))]
-        if discretize_continuous_data:
+        if cont_feat_trans == 'discretize':
             numerical_column_steps += [
-                ('encoder', KBinsDiscretizer(subsample=None))  # Pass a seed if `subsample != None`!
+                ('encoder', KBinsDiscretizer(subsample=None))
             ]
-        else:
+        elif cont_feat_trans == 'scale':
             numerical_column_steps += [('encoder', StandardScaler())]
+        else:
+            numerical_column_steps += [('encoder', None)]
         numerical_column_pipeline = Pipeline(numerical_column_steps)
 
         # Categorical columns.
@@ -409,16 +411,18 @@ class ADNIData(Data):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def get_column_transformer(self, discretize_continuous_data):
+    def get_column_transformer(self, cont_feat_trans):
         # Numerical columns.
         numerical_column_selector = make_column_selector(dtype_include='float64')
         numerical_column_steps = [('imputer', None)]
-        if discretize_continuous_data:
+        if cont_feat_trans == 'discretize':
             numerical_column_steps += [
                 ('encoder', KBinsDiscretizer(subsample=None))
             ]
-        else:
+        elif cont_feat_trans == 'scale':
             numerical_column_steps += [('encoder', StandardScaler())]
+        else:
+            numerical_column_steps += [('encoder', None)]
         numerical_column_pipeline = Pipeline(numerical_column_steps)
 
         # Categorical columns.
@@ -588,7 +592,7 @@ class SepsisData(Data):
             log_scaled_columns = [f'{c}_agg' for c in self.LOG_SCALE]
         return sorted(list(set(X).intersection(log_scaled_columns)))
 
-    def get_column_transformer(self, discretize_continuous_data):
+    def get_column_transformer(self, cont_feat_trans):
         return make_column_transformer(
             (self.get_shift_transformer(), self.get_shifted_columns),
             (self.get_scale_transformer(), self.get_scaled_columns),

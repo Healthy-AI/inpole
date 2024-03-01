@@ -23,13 +23,25 @@ from . import (
 ALL_NET_ESTIMATORS = NET_ESTIMATORS | RECURRENT_NET_ESTIMATORS
 CPLEX_PARAM_VALUE_BOUND = 20e8
 
-_require_categorical_inputs = [
-    'sdt',
-    'rdt',
-    'riskslim',
-    'fasterrisk',
-    'frl'
-]
+
+continuous_feature_transformation = {
+    'dt': None,
+    'dummy': None,
+    'fasterrisk': 'discretize',
+    'frl': 'discretize',
+    'lr': 'scale',
+    'mlp': 'scale',
+    'pronet': 'scale',
+    'prosenet': 'scale',
+    'rdt': 'discretize',
+    'rnn': 'scale',
+    'rulefit': 'scale',
+    'riskslim': 'discretize',
+    'sdt': 'discretize',
+    'truncated_prosenet': 'scale',
+    'truncated_rdt': 'discretize',
+    'truncated_rnn': 'scale',
+}
 
 
 _default_net_params = {
@@ -137,16 +149,13 @@ class Pipeline(pipeline.Pipeline):
         return estimator.score(X, y, **score_params)
 
 
-def create_pipeline(
-    config,
-    estimator_name
-):
+def create_pipeline(config, estimator_name):
     data_handler = get_data_handler_from_config(config)
 
     # @TODO: Should this seed depend on the estimator?
     seed = config['hparams']['seed']
-    discretize_continuous_data = estimator_name in _require_categorical_inputs
-    preprocessor = data_handler.get_preprocessor(discretize_continuous_data, seed)
+    cont_feat_trans = continuous_feature_transformation[estimator_name]
+    preprocessor = data_handler.get_preprocessor(cont_feat_trans, seed)
 
     is_switch_estimator = False
     if estimator_name.startswith('switch'):
