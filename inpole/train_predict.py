@@ -21,10 +21,6 @@ from . import NET_ESTIMATORS, RECURRENT_NET_ESTIMATORS
 ALL_NET_ESTIMATORS = NET_ESTIMATORS | RECURRENT_NET_ESTIMATORS
 
 
-# @TODO: rulefit uses internal cross-validation, so perhaps we should train it using 
-# both training data and validation data.
-
-
 def is_net_estimator(estimator_name):
     return estimator_name in ALL_NET_ESTIMATORS or (
         estimator_name.startswith('switch') and
@@ -100,7 +96,7 @@ def train(config, estimator_name, calibrate=False):
 
     fit_params = {}
 
-    if data_handler.aggregate_history and data_handler.add_current_context:
+    if data_handler.aggregate_history:
         preprocessor = _check_fit_preprocessor(preprocessor, X_train, y_train)
         ct = preprocessor.named_steps['column_transformer']
         ct_feature_names = ct.get_feature_names_out()

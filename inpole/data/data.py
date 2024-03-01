@@ -179,7 +179,7 @@ class Data(ABC):
 
     def _aggregate_history(self, X, agg_index):
         def func(x):
-            return x.max() if x.name in X.columns[agg_index] else x.iat[-1]
+            return x.max() if x.name in X.columns[agg_index] else x.iloc[-1]
         X = pd.DataFrame(X)
         c_group = X.columns[-1]
         aggregates = []
