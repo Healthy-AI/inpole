@@ -265,12 +265,14 @@ class Data(ABC):
             X = self._remove_previous_treatment(X)
         
         if self.aggregate_history:
-            X_agg = X.drop(columns=self.aggregate_exclude) \
-                if self.add_current_context else X
-            mapper = {c: f'{c}_agg' for c in X_agg.columns}
-            X_agg = X_agg.rename(mapper, axis=1)
+            mapper = {
+                c: f'{c}_agg' for c in X.columns
+                if c not in self.aggregate_exclude
+            }
+            X_agg = X.rename(mapper, axis=1)
             if self.add_current_context:
-                X_agg = pd.concat([X_agg, X], axis=1)
+                X_add = X.drop(columns=self.aggregate_exclude)
+                X_agg = pd.concat([X_agg, X_add], axis=1)
             X = X_agg
         
         return X, y, groups
