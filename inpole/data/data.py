@@ -512,7 +512,7 @@ class SepsisData(Data):
         'output_4hourly',
         'max_dose_vaso',
         'prev_input_4hourly',
-        'pev_max_dose_vaso'
+        'prev_max_dose_vaso'
     ]
     SCALE = [
         'age',
