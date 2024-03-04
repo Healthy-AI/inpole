@@ -9,6 +9,7 @@ from amhelpers.amhelpers import create_results_dir_from_config
 
 from inpole import ESTIMATORS
 from inpole.train_predict import train, predict
+from inpole.data import get_data_handler_from_config
 
 
 if __name__ == '__main__':
@@ -17,6 +18,7 @@ if __name__ == '__main__':
     parser.add_argument('--estimator', type=str, choices=ESTIMATORS, required=True)
     parser.add_argument('--new_out_dir', action='store_true')
     parser.add_argument('--predict_only', action='store_true')
+    parser.add_argument('--calibrate', action='store_true')
     args = parser.parse_args()
 
     config = load_config(args.config_path)
@@ -35,9 +37,9 @@ if __name__ == '__main__':
     if args.predict_only:
         pipeline = joblib.load(f_pipeline)
     else:
-        pipeline = train(config, args.estimator)
+        pipeline = train(config, args.estimator, args.calibrate)
         joblib.dump(pipeline, f_pipeline)
-        if 'sdt' in args.estimator or 'rdt' in args.estimator:
+        if args.estimator in ['sdt', 'rdt', 'truncated_rdt']:
             # Delete saved history objects.
             results_path = config['results']['path']
             for root, _, files in os.walk(results_path):
@@ -56,3 +58,30 @@ if __name__ == '__main__':
         for subset in subsets:
             predict(config, pipeline, args.estimator, subset,
                     metrics=metrics, switches_only=True)
+    
+    if args.estimator in ['sdt', 'rdt', 'truncated_rdt']:
+        preprocessor, estimator = pipeline.named_steps.values()
+
+        feature_names = preprocessor.get_feature_names_out()
+        feature_names = [s.split('__')[1] for s in feature_names]
+
+        data_handler = get_data_handler_from_config(config)
+        labels = data_handler.get_labels()
+
+        estimator.align_axes()
+        estimator.save_tree(feature_names, labels, suffix='_before_pruning')
+
+        for subset in subsets:
+            predict(config, pipeline, f'{args.estimator}_aligned', subset, 
+                    metrics=metrics)
+
+        X_valid, y_valid = data_handler.get_splits()[1]
+        Xt_valid = preprocessor.transform(X_valid)
+        _, all_path_probas, _ = estimator.forward(Xt_valid)
+        
+        estimator.prune_tree(all_path_probas)
+        estimator.save_tree(feature_names, labels, suffix='_after_pruning')
+
+        for subset in subsets:
+            predict(config, pipeline, f'{args.estimator}_pruned', subset, 
+                    metrics=metrics)

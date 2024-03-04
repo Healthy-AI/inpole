@@ -8,7 +8,9 @@ from .models import (
     SwitchPropensityEstimator,
     RiskSlimClassifier,
     FasterRiskClassifier,
-    FRLClassifier
+    FRLClassifier,
+    RuleFitClassifier,
+    CalibratedClassifierCV
 )
 from .data.data import get_data_handler_from_config
 from .data.utils import drop_shifted_columns
@@ -17,10 +19,6 @@ from . import NET_ESTIMATORS, RECURRENT_NET_ESTIMATORS
 
 
 ALL_NET_ESTIMATORS = NET_ESTIMATORS | RECURRENT_NET_ESTIMATORS
-
-
-# @TODO: rulefit uses internal cross-validation, so perhaps we should train it using 
-# both training data and validation data.
 
 
 def is_net_estimator(estimator_name):
@@ -52,10 +50,13 @@ def _check_fit_preprocessor(preprocessor, X=None, y=None):
 def _get_feature_names(preprocessor, X=None, y=None, trim=True):
     preprocessor = _check_fit_preprocessor(preprocessor, X, y)
     feature_names = preprocessor.get_feature_names_out()
+    remainders = [n for n in feature_names if n.startswith('remainder')]
+    assert len(remainders) <= 1
     if trim:
-        return np.array([s.split('__')[1] for s in feature_names])
+        feature_names = [s.split('__')[1] for s in feature_names if not s in remainders]
     else:
-        return feature_names
+        feature_names = [s for s in feature_names if not s in remainders]
+    return np.array(feature_names)
 
 
 def _separate_switches(preprocessor, treatment, X, y):
@@ -72,25 +73,35 @@ def _separate_switches(preprocessor, treatment, X, y):
     return Xt[switch], y[switch]
 
 
-def train(config, estimator_name):
+def train(config, estimator_name, calibrate=False):
     pipeline = create_pipeline(config, estimator_name)
     preprocessor, estimator = pipeline.named_steps.values()
 
     data_handler = get_data_handler_from_config(config)
+
+    if data_handler.aggregate_history:
+        assert not expects_groups(estimator)
 
     data_train, data_valid, _ = data_handler.get_splits()
     X_train, y_train = data_train
     X_valid, y_valid = data_valid
 
     if estimator_name.startswith('truncated'):
-        X_train = drop_shifted_columns(X_train, data_handler.TREATMENT)
-        X_valid = drop_shifted_columns(X_valid, data_handler.TREATMENT)
+        X_train = drop_shifted_columns(X_train)
+        X_valid = drop_shifted_columns(X_valid)
 
-    if not expects_groups(estimator):
+    if not expects_groups(estimator) and not data_handler.aggregate_history:
         X_train = X_train.drop(columns=data_handler.GROUP)
         X_valid = X_valid.drop(columns=data_handler.GROUP)
 
     fit_params = {}
+
+    if data_handler.aggregate_history:
+        preprocessor = _check_fit_preprocessor(preprocessor, X_train, y_train)
+        ct = preprocessor.named_steps['column_transformer']
+        ct_feature_names = ct.get_feature_names_out()
+        agg_index = [i for i, s in enumerate(ct_feature_names) if '_agg' in s]
+        fit_params['preprocessor__feature_selector__agg_index'] = agg_index
     
     if is_net_estimator(estimator_name):
         fit_params['estimator__X_valid'] = X_valid
@@ -102,7 +113,7 @@ def train(config, estimator_name):
         fit_params['estimator__feature_names'] = feature_names
         fit_params['estimator__outcome_name'] = outcome_name
     
-    if isinstance(estimator, FasterRiskClassifier):
+    if isinstance(estimator, FasterRiskClassifier) or isinstance(estimator, RuleFitClassifier):
         feature_names = _get_feature_names(preprocessor, X_train, y_train)
         fit_params['estimator__feature_names'] = feature_names
     
@@ -116,7 +127,13 @@ def train(config, estimator_name):
         prev_therapy_index = _get_previous_therapy_index(feature_names, prefix)
         fit_params['estimator__prev_therapy_index'] = prev_therapy_index
 
-    return pipeline.fit(X_train, y_train, **fit_params)
+    pipeline.fit(X_train, y_train, **fit_params)
+
+    if calibrate:
+        pipeline = CalibratedClassifierCV(pipeline, method='isotonic', cv='prefit')
+        pipeline.fit(X_valid, y_valid)
+    
+    return pipeline
 
 
 def collect_scores(model, X, y, metrics, columns=[], data=[], labels=None):
@@ -151,9 +168,12 @@ def predict(
         X, y = data_test
     
     if estimator_name.startswith('truncated'):
-        X = drop_shifted_columns(X, data_handler.TREATMENT)
+        X = drop_shifted_columns(X)
+
+    estimator = pipeline.estimator[-1] \
+        if isinstance(pipeline, CalibratedClassifierCV) else pipeline[-1]
     
-    if not expects_groups(pipeline[-1]):
+    if not expects_groups(estimator) and not data_handler.aggregate_history:
        X = X.drop(columns=data_handler.GROUP)
 
     metrics = [
@@ -166,6 +186,7 @@ def predict(
     labels = data_handler.get_labels()
 
     if switches_only:
+        assert not isinstance(pipeline, CalibratedClassifierCV)
         preprocessor = pipeline.named_steps['preprocessor']
         treatment = data_handler.TREATMENT
         Xt_s, y_s = _separate_switches(preprocessor, treatment, X, y)

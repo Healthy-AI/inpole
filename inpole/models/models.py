@@ -1,4 +1,3 @@
-import os
 import copy
 import math
 import warnings
@@ -24,6 +23,7 @@ from skorch.dataset import unpack_data, get_len
 
 import sklearn.linear_model as lm
 import sklearn.dummy as dummy
+import sklearn.calibration as calibration
 import sklearn.tree as tree
 import sklearn.metrics as metrics
 from sklearn.base import BaseEstimator
@@ -73,8 +73,30 @@ __all__ = [
     'FRLClassifier',
     'TruncatedRNNClassifier',
     'TruncatedProSeNetClassifier',
-    'TruncatedRDTClassifier'
+    'TruncatedRDTClassifier',
+    'CalibratedClassifierCV',
 ]
+
+
+def get_model_complexity(model):
+    if isinstance(model, LogisticRegression):
+        return np.count_nonzero(model.coef_)
+    if isinstance(model, RiskSlimClassifier):
+        return np.count_nonzero(model.coef_)
+    elif isinstance(model, FRLClassifier):
+        return sum(len(rule) for rule in model.rule_list if isinstance(rule, tuple))
+    elif isinstance(model, RuleFitClassifier):
+        return np.count_nonzero(model.coef_)
+    elif isinstance(model, (ProNetClassifier, ProSeNetClassifier)):
+        return model.module_.num_prototypes
+    elif isinstance(model, (MLPClassifier, RNNClassifier)):
+        return sum(p.numel() for p in model.module_.parameters() if p.requires_grad)
+    elif isinstance(model, DecisionTreeClassifier):
+        return model.get_n_leaves()
+    elif isinstance(model, (SDTClassifer, RDTClassifer)):
+        return len(model.tree_.leaf_nodes)
+    else:
+        raise ValueError(f"Unsupported model {type(model).__name__}.")
 
 
 class EpochScoring(cbs.EpochScoring):
@@ -898,18 +920,18 @@ class DecisionTreeClassifier(ClassifierMixin, tree.DecisionTreeClassifier):
         ccp_alpha=0.0
     ):
         super().__init__(
-            criterion='gini',
-            splitter='best',
-            max_depth=None,
-            min_samples_split=2,
-            min_samples_leaf=1,
-            min_weight_fraction_leaf=0.0,
-            max_features=None,
-            random_state=None,
-            max_leaf_nodes=None,
-            min_impurity_decrease=0.0,
-            class_weight=None,
-            ccp_alpha=0.0
+            criterion=criterion,
+            splitter=splitter,
+            max_depth=max_depth,
+            min_samples_split=min_samples_split,
+            min_samples_leaf=min_samples_leaf,
+            min_weight_fraction_leaf=min_weight_fraction_leaf,
+            max_features=max_features,
+            random_state=random_state,
+            max_leaf_nodes=max_leaf_nodes,
+            min_impurity_decrease=min_impurity_decrease,
+            class_weight=class_weight,
+            ccp_alpha=ccp_alpha
         )
 
 
@@ -1145,7 +1167,7 @@ class RuleFitClassifier(ClassifierMixin, rulefit.RuleFit):
             random_state=random_state
         )
 
-    def fit(self, X, y, feature_names, **kwargs):
+    def fit(self, X, y, feature_names=None, **kwargs):
         super().fit(X, y, feature_names, **kwargs)
         self.classes_ = np.unique(y)
         return self
@@ -1273,8 +1295,11 @@ class RiskSlimClassifier(ClassifierMixin):
         self.intercept_ = model_info['solution'][0]
         self.coef_ = model_info['solution'][1:]
         self.classes_ = np.unique(y)
-        risk_table = riskslim.utils.print_model(model_info['solution'], data)
-        self.risk_list = risk_table.get_string()
+        try:
+            risk_table = riskslim.utils.print_model(model_info['solution'], data)
+            self.risk_list = risk_table.get_string()
+        except ValueError:
+            self.risk_list = None
     
     def decision_function(self, X):
         return self.intercept_ + np.dot(X, self.coef_)
@@ -1387,13 +1412,18 @@ class FRLClassifier(ClassifierMixin):
 
         assert list(preprocessor.named_steps) == \
             ['column_transformer', 'feature_selector']
-        assert preprocessor.named_steps['feature_selector'] is None
         
+        if preprocessor.named_steps['feature_selector'] is not None:
+            fs = preprocessor.named_steps['feature_selector']
+            assert fs.n_features_in_ == len(fs.get_feature_names_out())
+
         assert np.array_equal(Xt, Xt.astype(bool))
 
         column_transformer = preprocessor.named_steps['column_transformer']
         transformers = column_transformer.transformers_
         output_indices = column_transformer.output_indices_
+
+        transformers = [t for t in transformers if t[0] != 'remainder']
 
         assert all(
             list(pipeline.named_steps) == ['imputer', 'encoder']
@@ -1479,3 +1509,22 @@ class FRLClassifier(ClassifierMixin):
             elif rule in row_set:
                 return index
         return None
+
+
+class CalibratedClassifierCV(ClassifierMixin, calibration.CalibratedClassifierCV):
+    def __init__(
+        self,
+        estimator=None,
+        *,
+        method='sigmoid',
+        cv=None,
+        n_jobs=None,
+        ensemble=True,
+    ):
+        super().__init__(
+            estimator=estimator,
+            method=method,
+            cv=cv,
+            n_jobs=n_jobs,
+            ensemble=ensemble
+        )

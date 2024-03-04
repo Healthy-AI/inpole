@@ -23,23 +23,16 @@ __all__ = [
 ]
 
 
-def drop_shifted_columns(X, treatments):
-    # Remove all "_1 features" except the previous therapy.
+def drop_shifted_columns(X):
     c_shifted = get_shifted_column_names(X)
-    if not isinstance(treatments, list):
-        treatments = [treatments]
-    for treatment in treatments:
-        try:
-            c_shifted.remove(treatment + '_1')
-        except ValueError:
-            pass
     return X.drop(columns=c_shifted)
 
 
-def shift_variable(grouped, variable, period, fillna):
-    shifted = grouped.shift(periods=period)
-    shifted = shifted.fillna(fillna)
-    shifted.rename(f'{variable}_{period}', inplace=True)
+def shift_variable(grouped_variable, period, fillna=None):
+    shifted = grouped_variable.shift(periods=period)
+    if fillna is not None:
+        shifted = shifted.fillna(fillna)
+    shifted.rename(f'{shifted.name}_{period}', inplace=True)
     return shifted
 
 

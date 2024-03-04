@@ -4,6 +4,7 @@ from pathlib import Path
 from datetime import timedelta
 from os.path import join
 
+import joblib
 import pandas as pd
 import numpy as np
 import colorcet as cc
@@ -17,6 +18,8 @@ from amhelpers.config_parsing import load_config
 
 from inpole.pipeline import _get_estimator_params
 from inpole.utils import merge_dicts
+from inpole.models.models import get_model_complexity
+
 
 def visualize_encodings(encodings, prototype_indices, frac=0.1, 
                         annotations=None, figsize=(6,4)):
@@ -152,10 +155,8 @@ def _get_hparam_names(params):
     return list(hparams)
 
 
-def get_params_and_scores(experiment_path, estimator_name, trials=None):
+def get_params_and_scores(sweep_path, estimator_name, trials=None):
     params, scores = [], []
-    
-    sweep_path = join(experiment_path, 'sweep')
 
     if trials is None:
         # Get all sorted trial directories.
@@ -168,25 +169,32 @@ def get_params_and_scores(experiment_path, estimator_name, trials=None):
         
         for d in sorted(Path(trial_path).iterdir()):
             exp = str(d).split('/')[-1]  # `exp` is on the form estimator_XX
-            n = exp.split('_')[0]  # Get the estimator name
+            name = '_'.join(exp.split('_')[:-1])  # Get the estimator name
             
-            if n == estimator_name:
+            if name == estimator_name:
+                try:
+                    scores_path = join(d, 'scores.csv')
+                    _scores = pd.read_csv(scores_path)
+                    scores.append(_scores)
+                except FileNotFoundError:
+                    continue
+
                 config_path = join(d, 'config.yaml')
                 _config = load_config(config_path)
                 _params = _get_estimator_params(_config, estimator_name)
+                _params.pop('random_state', None)
                 params.append(_params)
-    
-                scores_path = join(d, 'scores.csv')
-                _scores = pd.read_csv(scores_path)
-                scores.append(_scores)
     
     return params, scores
 
 
-def inspect_hyperparameters(experiment_path, estimator_name, metric='auc', 
+def inspect_hyperparameters(sweep_path, estimator_name, metric='auc', 
                             trials=None, **plot_kwargs):
     # Get all parameters and scores.
-    params, scores = get_params_and_scores(experiment_path, estimator_name, trials)
+    params, scores = get_params_and_scores(sweep_path, estimator_name, trials)
+
+    if len(scores) == 0:
+        raise ValueError(f"No scores were found for estimator {estimator_name}.")
 
     # Get hyperparameter names.
     hparams = _get_hparam_names(params)
@@ -194,7 +202,7 @@ def inspect_hyperparameters(experiment_path, estimator_name, metric='auc',
     # Plot hyperparameter values against scores.
     num_subplots = len(hparams)
     _fig, axes = plt.subplots(num_subplots, 1, sharex=True, **plot_kwargs)
-    axes = axes.flatten()
+    axes = axes.flatten() if num_subplots > 1 else [axes]
 
     num_candidates = len(params)
     if num_candidates > 10:
@@ -204,12 +212,63 @@ def inspect_hyperparameters(experiment_path, estimator_name, metric='auc',
     
     for ax, hparam in zip(axes, hparams):
         ax.set_title(hparam)
+
+    value_mapper = {}
+
+    for ax, hparam in zip(axes, hparams):
+        values = [p[hparam] for p in params]
+        if set(values) == {0, 1}:
+            continue
+        if all([isinstance(v, tuple) for v in values]):
+            unique_values = list(set(values))
+            unique_values = sorted(unique_values, key=lambda x: (len(x), x[0]))
+            value_mapper[hparam] = {k: v for v, k in enumerate(unique_values)}
+            ax.set_yticks(range(len(unique_values)))
+            ax.set_yticklabels(unique_values)
+        try:
+            log_values = np.log10(values)
+            if log_values.max() - log_values.min() >= 2:
+                ax.set_yscale('log')
+        except:
+            pass
     
     for _params, _scores, color in zip(params, scores, colors):
         score = _scores[_scores.subset=='valid'][metric].item()
         for ax, hparam in zip(axes, hparams):
             value = _params[hparam]
             try:
-                ax.scatter(score, value, c=color)
+                if hparam in value_mapper:
+                    v = value_mapper[hparam][value]
+                    ax.scatter(score, v, color=color)
+                else:
+                    ax.scatter(score, value, color=color)
             except ValueError:
                 warnings.warn(f"Failed to plot parameter value {value}.")
+
+
+def get_model_complexities_and_scores(trial_path, estimator_name, metric='auc'):
+    complexities, scores = [], []
+
+    for experiment_dir in os.listdir(trial_path):
+        exp = experiment_dir.split('/')[-1]  # `exp` is on the form estimator_XX
+        name = '_'.join(exp.split('_')[:-1])  # Get the estimator name
+        
+        if name == estimator_name:
+            pipeline_path = join(trial_path, experiment_dir, 'pipeline.pkl')
+            if os.path.exists(pipeline_path):
+                pipeline = joblib.load(pipeline_path)
+                estimator = pipeline.named_steps['estimator']
+                complexity = get_model_complexity(estimator)
+            else:
+                complexity = None
+            complexities.append(complexity)
+            
+            scores_path = join(trial_path, experiment_dir, 'scores.csv')
+            if os.path.exists(scores_path):
+                s = pd.read_csv(scores_path)
+                score = s[s.subset == 'test'][metric].item()
+            else:
+                score = None
+            scores.append(score)
+
+    return complexities, scores

@@ -21,6 +21,27 @@ from . import (
 
 
 ALL_NET_ESTIMATORS = NET_ESTIMATORS | RECURRENT_NET_ESTIMATORS
+CPLEX_PARAM_VALUE_BOUND = 20e8
+
+
+continuous_feature_transformation = {
+    'dt': None,
+    'dummy': None,
+    'fasterrisk': 'discretize',
+    'frl': 'discretize',
+    'lr': 'scale',
+    'mlp': 'scale',
+    'pronet': 'scale',
+    'prosenet': 'scale',
+    'rdt': 'discretize',
+    'rnn': 'scale',
+    'rulefit': 'scale',
+    'riskslim': 'discretize',
+    'sdt': 'discretize',
+    'truncated_prosenet': 'scale',
+    'truncated_rdt': 'discretize',
+    'truncated_rnn': 'scale',
+}
 
 
 _default_net_params = {
@@ -64,7 +85,10 @@ def _get_estimator_params(config, estimator_name, input_dim=None, output_dim=Non
             }
         )
     else:
-        params = {'random_state': config['estimators']['seed']}
+        seed = config['estimators']['seed']
+        if estimator_name == 'riskslim' and seed > CPLEX_PARAM_VALUE_BOUND:
+            seed = int(seed - CPLEX_PARAM_VALUE_BOUND)
+        params = {'random_state': seed}
     
     params.update(hparams)
 
@@ -125,14 +149,13 @@ class Pipeline(pipeline.Pipeline):
         return estimator.score(X, y, **score_params)
 
 
-def create_pipeline(
-    config,
-    estimator_name
-):
+def create_pipeline(config, estimator_name):
     data_handler = get_data_handler_from_config(config)
 
     # @TODO: Should this seed depend on the estimator?
-    preprocessor = data_handler.get_preprocessor(config['hparams']['seed'])
+    seed = config['hparams']['seed']
+    cont_feat_trans = continuous_feature_transformation[estimator_name]
+    preprocessor = data_handler.get_preprocessor(cont_feat_trans, seed)
 
     is_switch_estimator = False
     if estimator_name.startswith('switch'):
@@ -143,7 +166,7 @@ def create_pipeline(
         # Infer input/output dimensions from training data.
         X_train, y_train = data_handler.get_splits()[0]
         if estimator_name.startswith('truncated'):
-            X_train = drop_shifted_columns(X_train, data_handler.TREATMENT)
+            X_train = drop_shifted_columns(X_train)
         preprocessor.fit(X_train, y_train)
         input_dim = len(preprocessor.get_feature_names_out()) - 1
         output_dim = len(set(y_train))
