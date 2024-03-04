@@ -200,16 +200,45 @@ def load_best_pipeline(
     return joblib.load(pipeline_path)
 
 
-def load_experiment_pipeline(experiment_path, trial, estimator_name):
+def load_experiment_pipeline(experiment_path, estimator_name, trial=None, period=None):
+    """Load pipelines from experiment_path
+    
+    Parameters
+    ------------
+    period: Defaults as None, to find the 'sweep' folder. If not, specify a period to load pipelines in 'sweep_period_x' folder.
+    trial: Default as None, to load all trial. If not, specify a trial to load.
+
+    Return:
+    ------------
+    pipelines
+    
+    """
     pipelines = {}
-    trial_path = join(experiment_path, 'sweep', f'trial_{trial:02d}')
-    if not os.path.exists(trial_path):
-        raise FileNotFoundError(f"No trial directory found for trial {trial}")
-    for experiment_dir in sorted(os.listdir(trial_path)):
-        if estimator_name in experiment_dir:
-            model_pipeline_path = join(trial_path, experiment_dir, 'pipeline.pkl')
-            if os.path.exists(model_pipeline_path):
-                pipelines[experiment_dir] = joblib.load(model_pipeline_path)
+    
+    base_path = experiment_path
+    if period is not None:
+        base_path = os.path.join(base_path, f'sweep_periods_{period}')
+    else:
+        base_path = os.path.join(base_path, 'sweep')
+    
+    if trial is not None:
+        trial_paths = [os.path.join(base_path, f'trial_{trial:02d}')]
+    else:
+        trial_paths = [os.path.join(base_path, d) for d in os.listdir(base_path) if os.path.isdir(os.path.join(base_path, d)) and d.startswith('trial_')]
+    for trial_path in trial_paths:
+        if not os.path.exists(trial_path):
+            continue  
+
+        for experiment_dir in sorted(os.listdir(trial_path)):
+            if estimator_name in experiment_dir:
+                model_pipeline_path = os.path.join(trial_path, experiment_dir, 'pipeline.pkl')
+                if os.path.exists(model_pipeline_path):
+                    pipelines[experiment_dir] = joblib.load(model_pipeline_path)
+
     if not pipelines:
-        raise FileNotFoundError(f"No pipelines found for model '{estimator_name}' in trial {trial}")
+        if trial is not None:
+            raise FileNotFoundError(f"No pipelines found for model '{estimator_name}' in trial {trial}")
+        else:
+            raise FileNotFoundError(f"No pipelines found for model '{estimator_name}' in any trial")
+
     return pipelines
