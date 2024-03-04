@@ -260,7 +260,7 @@ def get_model_complexities_and_scores(trial_path, estimator_name, metric='auc'):
                 estimator = pipeline.named_steps['estimator']
                 complexity = get_model_complexity(estimator)
             else:
-                complexity = None
+                complexity = np.nan
             complexities.append(complexity)
             
             scores_path = join(trial_path, experiment_dir, 'scores.csv')
@@ -271,7 +271,7 @@ def get_model_complexities_and_scores(trial_path, estimator_name, metric='auc'):
                     mask &= s.estimator_name == f'{name}_aligned'
                 score = s[mask][metric].item()
             else:
-                score = None
+                score = np.nan
             scores.append(score)
 
     return np.array(complexities), np.array(scores)
