@@ -574,24 +574,24 @@ class SepsisData(Data):
         shifted_columns = deepcopy(self.SHIFT)
         for period in range(1, self.shift_periods + 1):
             shifted_columns += [f'{c}_{period}' for c in self.SHIFT]
-        if self.aggregate_history and self.add_current_context:
-            shifted_columns = [f'{c}_agg' for c in self.SHIFT]
+        if self.aggregate_history:
+            shifted_columns += [f'{c}_agg' for c in self.SHIFT]
         return sorted(list(set(X).intersection(shifted_columns)))
 
     def get_scaled_columns(self, X):
         scaled_columns = deepcopy(self.SCALE)
         for period in range(1, self.shift_periods + 1):
             scaled_columns += [f'{c}_{period}' for c in self.SCALE]
-        if self.aggregate_history and self.add_current_context:
-            scaled_columns = [f'{c}_agg' for c in self.SCALE]
+        if self.aggregate_history:
+            scaled_columns += [f'{c}_agg' for c in self.SCALE]
         return sorted(list(set(X).intersection(scaled_columns)))
 
     def get_log_scaled_columns(self, X):
         log_scaled_columns = deepcopy(self.LOG_SCALE)
         for period in range(1, self.shift_periods + 1):
             log_scaled_columns += [f'{c}_{period}' for c in self.LOG_SCALE]
-        if self.aggregate_history and self.add_current_context:
-            log_scaled_columns = [f'{c}_agg' for c in self.LOG_SCALE]
+        if self.aggregate_history:
+            log_scaled_columns += [f'{c}_agg' for c in self.LOG_SCALE]
         return sorted(list(set(X).intersection(log_scaled_columns)))
 
     def get_column_transformer(self, cont_feat_trans):
