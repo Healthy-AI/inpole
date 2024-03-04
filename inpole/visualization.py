@@ -266,9 +266,12 @@ def get_model_complexities_and_scores(trial_path, estimator_name, metric='auc'):
             scores_path = join(trial_path, experiment_dir, 'scores.csv')
             if os.path.exists(scores_path):
                 s = pd.read_csv(scores_path)
-                score = s[s.subset == 'test'][metric].item()
+                mask = s.subset == 'test'
+                if name in ['rdt', 'truncated_rdt']:
+                    mask &= s.estimator_name == f'{name}_aligned'
+                score = s[mask][metric].item()
             else:
                 score = None
             scores.append(score)
 
-    return complexities, scores
+    return np.array(complexities), np.array(scores)

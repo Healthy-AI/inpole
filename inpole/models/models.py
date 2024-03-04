@@ -86,7 +86,8 @@ def get_model_complexity(model):
     elif isinstance(model, FRLClassifier):
         return sum(len(rule) for rule in model.rule_list if isinstance(rule, tuple))
     elif isinstance(model, RuleFitClassifier):
-        return np.count_nonzero(model.coef_)
+        return len([len(str(r).split('&')) for r in model.rule_ensemble.rules])
+        # return np.count_nonzero(model.coef_)
     elif isinstance(model, (ProNetClassifier, ProSeNetClassifier)):
         return model.module_.num_prototypes
     elif isinstance(model, (MLPClassifier, RNNClassifier)):
@@ -97,7 +98,6 @@ def get_model_complexity(model):
         return len(model.tree_.leaf_nodes)
     else:
         raise ValueError(f"Unsupported model {type(model).__name__}.")
-
 
 class EpochScoring(cbs.EpochScoring):
     # @TODO: Modify `y_pred` in SDT/RDT and remove this class.
