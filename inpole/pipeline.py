@@ -203,7 +203,8 @@ def load_best_pipeline(
     experiment_path,
     trial,
     estimator_name,
-    sweep_parameter_value=None
+    sweep_parameter_value=None,
+    return_path=False
 ):
     scores_path = join(experiment_path, 'scores.csv')
     scores = pd.read_csv(scores_path)
@@ -220,7 +221,10 @@ def load_best_pipeline(
     experiment = scores[mask].exp.iat[0]
     results_path = join(experiment_path, sweep, f'trial_{trial:02d}', experiment)
     pipeline_path = join(results_path, 'pipeline.pkl')
-    return joblib.load(pipeline_path)
+    pipeline = joblib.load(pipeline_path)
+    if return_path:
+        return pipeline, pipeline_path
+    return pipeline
 
 
 def load_experiment_pipeline(experiment_path, estimator_name, trial=None, period=None):
