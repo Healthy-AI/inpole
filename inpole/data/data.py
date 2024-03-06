@@ -460,7 +460,10 @@ class SwitchData(RAData):
         X, y, groups = super().load()
         y_encoded = LabelEncoder().fit_transform(y)
         y = pd.Series(y_encoded, index=y.index, name=y.name)
-        y = y.groupby(groups).diff().fillna(0)
+        y = y.groupby(groups).diff()
+        X = X[~y.isna()]
+        groups = groups[~y.isna()]
+        y = y.dropna()
         y = (y != 0).astype(int)
         return X, y, groups
 
