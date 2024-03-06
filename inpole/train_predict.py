@@ -104,7 +104,7 @@ def train(config, estimator_name, calibrate=False):
         agg_index = [i for i, s in enumerate(ct_feature_names) if '_agg' in s]
         fit_params['preprocessor__feature_selector__agg_index'] = agg_index
     
-    if is_net_estimator(estimator_name):
+    if is_net_estimator(estimator_name) or isinstance(estimator, DecisionTreeClassifier):
         fit_params['estimator__X_valid'] = X_valid
         fit_params['estimator__y_valid'] = y_valid
     
@@ -129,24 +129,7 @@ def train(config, estimator_name, calibrate=False):
         fit_params['estimator__prev_therapy_index'] = prev_therapy_index
 
     pipeline.fit(X_train, y_train, **fit_params)
-
-    # @TODO: Move this to DecisionTreeClassifier.
-    if isinstance(estimator, DecisionTreeClassifier):
-        Xt_train = pipeline.named_steps['preprocessor'].transform(X_train)
-        path = pipeline[-1].cost_complexity_pruning_path(Xt_train, y_train)
-        indices = np.linspace(0, len(path.ccp_alphas) - 2, 10, dtype=int)
-        best_ccp_alpha, best_score = None, -np.inf
-        for ccp_alpha in path.ccp_alphas[indices]:
-            pipeline[-1].set_params(ccp_alpha=ccp_alpha)
-            pipeline[-1].fit(Xt_train, y_train)
-            score = pipeline.score(X_valid, y_valid)
-            print('ccp_alpha:', ccp_alpha, 'score:', score)
-            if score > best_score:
-                best_score = score
-                best_ccp_alpha = ccp_alpha
-        pipeline[-1].set_params(ccp_alpha=best_ccp_alpha)
-        pipeline[-1].fit(Xt_train, y_train)
-
+    
     if calibrate:
         pipeline = CalibratedClassifierCV(pipeline, method='isotonic', cv='prefit')
         pipeline.fit(X_valid, y_valid)

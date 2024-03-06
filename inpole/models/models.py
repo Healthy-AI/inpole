@@ -917,8 +917,10 @@ class DecisionTreeClassifier(ClassifierMixin, tree.DecisionTreeClassifier):
         max_leaf_nodes=None,
         min_impurity_decrease=0.0,
         class_weight=None,
-        ccp_alpha=0.0
+        ccp_alpha=0.0,
+        num_ccp_alphas=10
     ):
+        self.num_ccp_alphas = num_ccp_alphas
         super().__init__(
             criterion=criterion,
             splitter=splitter,
@@ -934,10 +936,35 @@ class DecisionTreeClassifier(ClassifierMixin, tree.DecisionTreeClassifier):
             ccp_alpha=ccp_alpha
         )
 
+    def fit(self, X, y, **fit_params):
+        X_valid = fit_params.pop('X_valid', None)
+        y_valid = fit_params.pop('y_valid', None)
+        if (
+            X_valid is not None
+            and y_valid is not None
+            and self.num_ccp_alphas is not None
+        ):
+            path = self.cost_complexity_pruning_path(X, y)
+            indices = np.linspace(0, len(path.ccp_alphas) - 2,
+                                  self.num_ccp_alphas, dtype=int)
+            best_ccp_alpha, best_score = None, -np.inf
+            for ccp_alpha in path.ccp_alphas[indices]:
+                self.set_params(ccp_alpha=ccp_alpha)
+                super().fit(X, y, **fit_params)
+                score = self.score(X_valid, y_valid)
+                print(f'ccp_alpha: {ccp_alpha:.5f}', f'score: {score:.2f}')
+                if score > best_score:
+                    best_score = score
+                    best_ccp_alpha = ccp_alpha
+            self.set_params(ccp_alpha=best_ccp_alpha)
+            return super().fit(X, y, **fit_params)
+        else:
+            return super().fit(X, y, **fit_params)
+
 
 class DummyClassifier(ClassifierMixin, dummy.DummyClassifier):
     def __init__(
-        self, *, strategy='prior', random_state=None, constant=None,
+        self, *, strategy='prior', random_state=None, constant=None
     ):
         super().__init__(
             strategy=strategy,
