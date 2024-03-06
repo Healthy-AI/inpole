@@ -21,8 +21,8 @@ from inpole.utils import merge_dicts
 from inpole.models.models import get_model_complexity
 
 
-def visualize_encodings(encodings, prototype_indices, frac=0.1, 
-                        annotations=None, figsize=(6,4)):
+def visualize_encodings(encodings, prototype_indices, frac=0.1, figsize=(6,4),
+                        annotations=None, hue=None, hue_key=None):
     
     pca = PCA(n_components=2).fit(encodings)
     
@@ -31,7 +31,8 @@ def visualize_encodings(encodings, prototype_indices, frac=0.1,
     _encodings = {
         'PC 1': encodings_pca[:, 0],
         'PC 2': encodings_pca[:, 1],
-        'Prototype': 'No'
+        'Prototype': 'No',
+        hue_key: hue
     }
     _encodings = pd.DataFrame(_encodings)
     
@@ -40,16 +41,20 @@ def visualize_encodings(encodings, prototype_indices, frac=0.1,
     
     # Transform the prototypes.
     prototypes_pca = encodings_pca[prototype_indices]
+    prototypes_hue = hue[prototype_indices] if hue is not None else None
     _prototypes = {
         'PC 1': prototypes_pca[:, 0], 
         'PC 2': prototypes_pca[:, 1],
         'Prototype': 'Yes',
+        hue_key: prototypes_hue
     }
     _prototypes = pd.DataFrame(_prototypes)
     
     fig, ax = plt.subplots(figsize=figsize)
     
     common_kwargs = {'x': 'PC 1', 'y': 'PC 2', 'ax': ax}
+    if hue is not None:
+        common_kwargs['hue'] = hue_key
     
     sns.scatterplot(data=_encodings, alpha=0.7, size='Prototype', 
                     sizes=(20, 100), size_order=['Yes', 'No'],
@@ -67,8 +72,9 @@ def visualize_encodings(encodings, prototype_indices, frac=0.1,
                         arrowprops={'arrowstyle': '-'})
         except TypeError:
             ax.annotate(i, xy=(a[0]+0.1, a[1]))
-    
-    ax.legend(loc="upper left", bbox_to_anchor=(1, 1), title='Prototype')
+
+    title = 'Prototype' if hue is None else None
+    ax.legend(loc="upper left", bbox_to_anchor=(1, 1), title=title)
 
     return fig, ax
 
