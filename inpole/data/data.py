@@ -245,7 +245,9 @@ class Data(ABC):
         if hasattr(self, 'FEATURES'):
             X = data[self.FEATURES]
         else:
-            X = data.drop(columns=[self.TREATMENT, self.GROUP])
+            columns = self.TREATMENT + [self.GROUP] \
+                if isinstance(self.TREATMENT, list) else [self.TREATMENT, self.GROUP]
+            X = data.drop(columns=columns)
 
         assert not any(['agg' in c for c in X.columns])
         
