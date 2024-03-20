@@ -167,8 +167,7 @@ def create_pipeline(config, estimator_name):
         X_train, y_train = data_handler.get_splits()[0]
         if estimator_name.startswith('truncated'):
             X_train = drop_shifted_columns(X_train)
-        preprocessor.fit(X_train, y_train)
-        input_dim = len(preprocessor.get_feature_names_out()) - 1
+        input_dim = len(get_feature_names(preprocessor, X_train, y_train))
         output_dim = len(set(y_train))
     else:
         input_dim = output_dim = None

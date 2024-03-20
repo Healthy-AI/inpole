@@ -99,6 +99,7 @@ def get_model_complexity(model):
     else:
         raise ValueError(f"Unsupported model {type(model).__name__}.")
 
+
 class EpochScoring(cbs.EpochScoring):
     # @TODO: Modify `y_pred` in SDT/RDT and remove this class.
     def on_batch_end(self, net, batch, y_pred, training, **kwargs):

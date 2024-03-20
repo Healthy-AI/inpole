@@ -18,6 +18,7 @@ from sklearn.preprocessing import (
     KBinsDiscretizer,
     LabelEncoder
 )
+from sklearn.feature_selection import SelectFromModel
 from sklearn.compose import (
     make_column_selector,
     ColumnTransformer,
@@ -25,6 +26,7 @@ from sklearn.compose import (
 )
 from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.impute import SimpleImputer
+from sklearn.ensemble import ExtraTreesClassifier
 
 from . import hparam_registry
 from .utils import shift_variable
@@ -37,7 +39,8 @@ __all__ = [
     'RAData',
     'ADNIData',
     'SwitchData',
-    'SepsisData'
+    'SepsisData',
+    'COPDData'
 ]
 
 
@@ -108,6 +111,7 @@ class Data(ABC):
         aggregate_exclude=None,
         shift_periods=0,
         shift_exclude=None,
+        max_features=None,
     ):
         self.path = path
         self.valid_size = valid_size
@@ -121,6 +125,7 @@ class Data(ABC):
         self.aggregate_exclude = aggregate_exclude
         self.shift_periods = shift_periods
         self.shift_exclude = shift_exclude
+        self.max_features = max_features
 
         self.validate_arguments()
     
@@ -190,13 +195,42 @@ class Data(ABC):
                 aggregates += [sequence.iloc[:t+1].apply(func)]
                 t += 1
         return np.array(aggregates)
+    
+    def _add_columns_to_aggregate(self, X):
+        mapper = {
+            c: f'{c}_agg' for c in X.columns
+            if c not in self.aggregate_exclude
+        }
+        X_agg = X.rename(mapper, axis=1)
+        if self.add_current_context:
+            X_add = X.drop(columns=self.aggregate_exclude)
+            X_agg = pd.concat([X_agg, X_add], axis=1)
+        return X_agg
+
+    def _get_feature_names_out(self, _, input_features=None):
+        return [x for x in input_features if not x.startswith('remainder')]
 
     def get_feature_selector(self):
+        steps = []
         if self.aggregate_history:
-            return FunctionTransformer(self._aggregate_history,
-                                       feature_names_out='one-to-one')
+            aggregator = FunctionTransformer(self._aggregate_history,
+                                             feature_names_out=self._get_feature_names_out)
         else:
-            return None
+            aggregator = None
+        if self.max_features is None:
+            selector = None
+        else:
+            # @TODO: Should not have a fixed seed here.
+            selector = SelectFromModel(
+                estimator=ExtraTreesClassifier(
+                    n_estimators=50,
+                    random_state=2024
+                ),
+                threshold=-np.inf,
+                max_features=self.max_features
+            )
+        steps = [('aggregator', aggregator), ('selector', selector)]
+        return Pipeline(steps)
 
     def get_preprocessor(self, cont_feat_trans, hparams_seed=None):
         steps = self.get_preprocessing_steps(cont_feat_trans)
@@ -267,22 +301,14 @@ class Data(ABC):
             X = self._remove_previous_treatment(X)
         
         if self.aggregate_history:
-            mapper = {
-                c: f'{c}_agg' for c in X.columns
-                if c not in self.aggregate_exclude
-            }
-            X_agg = X.rename(mapper, axis=1)
-            if self.add_current_context:
-                X_add = X.drop(columns=self.aggregate_exclude)
-                X_agg = pd.concat([X_agg, X_add], axis=1)
-            X = X_agg
+            X = self._add_columns_to_aggregate(X)
         
         return X, y, groups
 
     def _shift_inputs(self, X, groups):
         grouped = X.groupby(groups)
         for c in X.columns:
-            if c in self.shift_exclude:
+            if c in self.shift_exclude or c.endswith('_agg'):
                 continue
             fillna = X[c]
             for period in range(1, self.shift_periods + 1):
@@ -604,5 +630,40 @@ class SepsisData(Data):
             (self.get_shift_transformer(), self.get_shifted_columns),
             (self.get_scale_transformer(), self.get_scaled_columns),
             (self.get_log_scale_transformer(), self.get_log_scaled_columns),
+            remainder='passthrough'
+        )
+
+
+class COPDData(Data):
+    TREATMENT = [
+        'Fluids_intakes',
+        'sedation'
+    ]
+    GROUP = 'PatientID'
+
+    def __init__(self, *, num_levels=5, **kwargs):
+        super().__init__(**kwargs)
+        self.num_levels = num_levels
+
+    def get_column_transformer(self, cont_feat_trans):
+        categorical_columns = make_column_selector(dtype_include='object')
+        categorical_transformer = Pipeline(
+            steps=[
+                ('imputer', SimpleImputer(strategy='most_frequent')),
+                ('encoder', OneHotEncoder(handle_unknown='ignore'))
+            ]
+        )
+
+        continuous_columns = make_column_selector(dtype_include='float64')
+        continuous_transformer = Pipeline(
+            steps=[
+                ('imputer', SimpleImputer(strategy='mean')),
+                ('scaler', StandardScaler())
+            ]
+        )
+
+        return make_column_transformer(
+            (categorical_transformer, categorical_columns),
+            (continuous_transformer, continuous_columns),
             remainder='passthrough'
         )

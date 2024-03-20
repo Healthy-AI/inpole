@@ -4,6 +4,11 @@ import pandas as pd
 import numpy as np
 
 from .models.utils import expects_groups
+from .data.utils import (
+    get_aggregation_index,
+    check_fit_preprocessor,
+    get_feature_names
+)
 from .models import (
     SwitchPropensityEstimator,
     RiskSlimClassifier,
@@ -37,33 +42,10 @@ def _get_previous_therapy_index(feature_names, prev_therapy_prefix):
     return prev_therapy_index
 
 
-def _check_fit_preprocessor(preprocessor, X=None, y=None):
-    if not hasattr(preprocessor, 'n_features_in_'):
-        if X is None:
-            raise ValueError(
-                "Training data `X` must be provided if the preprocessor is" 
-                "not already fitted."
-            )
-        preprocessor.fit(X, y)
-    return preprocessor
-
-
-def _get_feature_names(preprocessor, X=None, y=None, trim=True):
-    preprocessor = _check_fit_preprocessor(preprocessor, X, y)
-    feature_names = preprocessor.get_feature_names_out()
-    remainders = [n for n in feature_names if n.startswith('remainder')]
-    assert len(remainders) <= 1
-    if trim:
-        feature_names = [s.split('__')[1] for s in feature_names if not s in remainders]
-    else:
-        feature_names = [s for s in feature_names if not s in remainders]
-    return np.array(feature_names)
-
-
 def _separate_switches(preprocessor, treatment, X, y):
     assert isinstance(treatment, str)
 
-    feature_names = _get_feature_names(preprocessor)
+    feature_names = get_feature_names(preprocessor)
     prefix = treatment + '_1_'
     prev_therapy_index = _get_previous_therapy_index(feature_names, prefix)
     
@@ -98,32 +80,29 @@ def train(config, estimator_name, calibrate=False):
     fit_params = {}
 
     if data_handler.aggregate_history:
-        preprocessor = _check_fit_preprocessor(preprocessor, X_train, y_train)
-        ct = preprocessor.named_steps['column_transformer']
-        ct_feature_names = ct.get_feature_names_out()
-        agg_index = [i for i, s in enumerate(ct_feature_names) if '_agg' in s]
-        fit_params['preprocessor__feature_selector__agg_index'] = agg_index
+        agg_index = get_aggregation_index(preprocessor, X_train, y_train)
+        fit_params['preprocessor__feature_selector__aggregator__agg_index'] = agg_index
     
     if is_net_estimator(estimator_name) or isinstance(estimator, DecisionTreeClassifier):
         fit_params['estimator__X_valid'] = X_valid
         fit_params['estimator__y_valid'] = y_valid
     
     if isinstance(estimator, RiskSlimClassifier):
-        feature_names = _get_feature_names(preprocessor, X_train, y_train)
+        feature_names = get_feature_names(preprocessor, X_train, y_train)
         outcome_name = data_handler.TREATMENT
         fit_params['estimator__feature_names'] = feature_names
         fit_params['estimator__outcome_name'] = outcome_name
     
     if isinstance(estimator, FasterRiskClassifier) or isinstance(estimator, RuleFitClassifier):
-        feature_names = _get_feature_names(preprocessor, X_train, y_train)
+        feature_names = get_feature_names(preprocessor, X_train, y_train)
         fit_params['estimator__feature_names'] = feature_names
     
     if isinstance(estimator, FRLClassifier):
-        preprocessor = _check_fit_preprocessor(preprocessor, X_train, y_train)
+        preprocessor = check_fit_preprocessor(preprocessor, X_train, y_train)
         fit_params['estimator__preprocessor'] = preprocessor
 
     if isinstance(estimator, SwitchPropensityEstimator):
-        feature_names = _get_feature_names(preprocessor, X_train)
+        feature_names = get_feature_names(preprocessor, X_train, y_train)
         prefix = data_handler.TREATMENT + '_1_'
         prev_therapy_index = _get_previous_therapy_index(feature_names, prefix)
         fit_params['estimator__prev_therapy_index'] = prev_therapy_index

@@ -6,6 +6,8 @@ from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence
 
 import pandas as pd
 import numpy as np
+from sklearn.base import clone
+from sklearn.pipeline import Pipeline
 
 import skorch
 from skorch.dataset import get_len
@@ -13,6 +15,9 @@ from skorch.utils import to_numpy
 
 
 __all__ = [
+    'get_aggregation_index',
+    'check_fit_preprocessor',
+    'get_feature_names',
     'drop_shifted_columns',
     'shift_variable',
     'get_shifted_column_names',
@@ -21,6 +26,44 @@ __all__ = [
     'SequentialDataset',
     'TruncatedHistoryDataset'
 ]
+
+
+def get_aggregation_index(preprocessor, X, y):
+    preprocessor = clone(preprocessor)
+    ct = preprocessor.named_steps['column_transformer']
+    ct = check_fit_preprocessor(ct, X, y)
+    ct_feature_names = ct.get_feature_names_out()
+    return [i for i, s in enumerate(ct_feature_names) if '_agg' in s]
+
+
+def check_fit_preprocessor(preprocessor, X=None, y=None):
+    if not hasattr(preprocessor, 'n_features_in_'):
+        if X is None:
+            raise ValueError(
+                "Training data `X` must be provided if the preprocessor is" 
+                "not already fitted."
+            )
+        if (
+            isinstance(preprocessor, Pipeline)
+            and preprocessor[1][0] is not None  # history aggregation
+        ):
+            agg_index = get_aggregation_index(preprocessor, X, y)
+            preprocessor.fit(X, y, feature_selector__aggregator__agg_index=agg_index)
+        else:
+            preprocessor.fit(X, y)
+    return preprocessor
+
+
+def get_feature_names(preprocessor, X=None, y=None, trim=True):
+    preprocessor = check_fit_preprocessor(preprocessor, X, y)
+    feature_names = preprocessor.get_feature_names_out()
+    remainders = [n for n in feature_names if n.startswith('remainder')]
+    assert len(remainders) <= 1
+    if trim:
+        feature_names = [s.split('__')[1] for s in feature_names if not s in remainders]
+    else:
+        feature_names = [s for s in feature_names if not s in remainders]
+    return np.array(feature_names)
 
 
 def drop_shifted_columns(X):
