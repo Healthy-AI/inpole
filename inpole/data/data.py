@@ -305,7 +305,7 @@ class Data(ABC):
         
         return X, y, groups
 
-    def _shift_inputs(self, X, groups):
+    def _add_shifted_inputs(self, X, groups):
         grouped = X.groupby(groups)
         for c in X.columns:
             if c in self.shift_exclude or c.endswith('_agg'):
@@ -371,7 +371,7 @@ class Data(ABC):
             # We shift the data here and not in `self.load` because we want to
             # load all datasets in the same way. For the RA data, we need to
             # remove non-registry visits before shifting the data.
-            X = self._shift_inputs(X, groups)
+            X = self._add_shifted_inputs(X, groups)
         return self._split_grouped_data(X, y, groups)
 
 
@@ -483,12 +483,26 @@ class ADNIData(Data):
 class SwitchData(RAData):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
+    def _add_previous_treatment(self, X, data):
+        y = data[self.TREATMENT]
+        groups = data[self.GROUP]
+        y_encoded = LabelEncoder().fit_transform(y)
+        y = pd.Series(y_encoded, index=y.index, name=y.name)
+        y = y.groupby(groups).diff().fillna(0)
+        y = y != 0
+        previous_action = y.groupby(groups).shift(fill_value=False)
+        previous_action.rename('prev_action', inplace=True)
+        X = pd.concat([X, previous_action], axis=1)
+        return X
     
     def load(self):
         X, y, groups = super().load()
         y_encoded = LabelEncoder().fit_transform(y)
         y = pd.Series(y_encoded, index=y.index, name=y.name)
         y = y.groupby(groups).diff()
+        # Remove the first visit for each patient since we need two
+        # consecutive visits to determine the action.
         X = X[~y.isna()]
         groups = groups[~y.isna()]
         y = y.dropna()
