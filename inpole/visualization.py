@@ -1,4 +1,5 @@
 import os
+import re
 import warnings
 from pathlib import Path
 from datetime import timedelta
@@ -15,6 +16,8 @@ from matplotlib import gridspec
 from seaborn._statistics import EstimateAggregator
 from sklearn.decomposition import PCA
 from amhelpers.config_parsing import load_config
+from sklearn.tree._export import _MPLTreeExporter
+from sklearn.tree._reingold_tilford import Tree
 
 from inpole.pipeline import _get_estimator_params
 from inpole.utils import merge_dicts
@@ -281,3 +284,187 @@ def get_model_complexities_and_scores(trial_path, estimator_name, metric='auc'):
             scores.append(score)
 
     return np.array(complexities), np.array(scores)
+
+
+class TreeExporter(_MPLTreeExporter):
+    def __init__(
+        self,
+        max_depth=None,
+        feature_names=None,
+        class_names=None,
+        filled=False,
+        proportion=False,
+        rounded=False,
+        precision=3,
+        fontsize=None,
+        node_ids_to_include=None,
+    ):
+        self.node_ids_to_include = node_ids_to_include
+        super().__init__(
+            max_depth=max_depth,
+            feature_names=feature_names,
+            class_names=class_names,
+            label='all',
+            filled=filled,
+            impurity=False,
+            node_ids=False,
+            proportion=proportion,
+            rounded=rounded,
+            precision=precision,
+            fontsize=fontsize,
+        )
+
+    def _make_tree(self, node_id, et, criterion, depth=0):
+        name = self.node_to_str(et, node_id, criterion=criterion)
+        if (
+            self.node_ids_to_include is not None
+            and node_id not in self.node_ids_to_include
+        ):
+            name = self.node_to_str(et, node_id, criterion=criterion)
+            if not name.startswith('samples'):
+                splits = name.split('\n')
+                splits[0] = 'null'
+                name = '\n'.join(splits)
+            return Tree(name, node_id)
+        return super()._make_tree(node_id, et, criterion, depth)
+
+    def recurse(self, node, tree, ax, max_x, max_y, depth=0):
+        kwargs = dict(
+            bbox=self.bbox_args.copy(),
+            ha="center",
+            va="center",
+            zorder=100 - 10 * depth,
+            xycoords="axes fraction",
+            arrowprops=self.arrow_args.copy(),
+        )
+        kwargs["arrowprops"]["edgecolor"] = plt.rcParams["text.color"]
+
+        if self.fontsize is not None:
+            kwargs["fontsize"] = self.fontsize
+
+        xy = ((node.x + 0.5) / max_x, (max_y - node.y - 0.5) / max_y)
+
+        if self.max_depth is None or depth <= self.max_depth:
+            if self.filled:
+                kwargs["bbox"]["fc"] = self.get_fill_color(tree, node.tree.node_id)
+            else:
+                kwargs["bbox"]["fc"] = ax.get_facecolor()
+
+            if node.parent is None:
+                ax.annotate(node.tree.label, xy, **kwargs)
+            else:
+                xy_parent = (
+                    (node.parent.x + 0.5) / max_x,
+                    (max_y - node.parent.y - 0.5) / max_y,
+                )
+                if node.tree.label.startswith('null'):
+                    kwargs["bbox"]["fc"] = "lightgrey"
+                    ax.annotate("\n  (...)  \n", xy_parent, xy, **kwargs)
+                else:
+                    ax.annotate(node.tree.label, xy_parent, xy, **kwargs)
+            if not node.tree.label.startswith('null'):
+                for child in node.children:
+                    self.recurse(child, tree, ax, max_x, max_y, depth=depth + 1)
+        else:
+            xy_parent = (
+                (node.parent.x + 0.5) / max_x,
+                (max_y - node.parent.y - 0.5) / max_y,
+            )
+            kwargs["bbox"]["fc"] = "lightgrey"
+            ax.annotate("\n  (...)  \n", xy_parent, xy, **kwargs)
+
+
+def get_node_ids_along_path(tree, path):
+    node_ids = [0]
+
+    for direction in path:
+        i = node_ids[-1]
+        if direction == 'l':
+            child = tree.tree_.children_left[i]
+            if child != -1:
+                node_ids.append(child)
+        elif direction == 'r':
+            child = tree.tree_.children_right[i]
+            if child != -1:
+                node_ids.append(child)
+        else:
+            raise ValueError("Invalid direction. Use 'l' for left or 'r' for right.")
+
+    return node_ids
+
+
+def plot_tree(
+    decision_tree,
+    max_depth=None,
+    feature_names=None,
+    filled=True,
+    proportion=True,
+    rounded=True,
+    precision=2,
+    fontsize=None,
+    ax=None,
+    node_ids_to_include=None,
+    label_mapper={},
+    formatter=None,
+    annotate_arrows=False,
+):
+    exporter = TreeExporter(
+        max_depth=max_depth,
+        feature_names=feature_names,
+        filled=filled,
+        proportion=proportion,
+        rounded=rounded,
+        precision=precision,
+        fontsize=fontsize,
+        node_ids_to_include=node_ids_to_include,
+    )
+    annotations = exporter.export(decision_tree, ax=ax)
+
+    if ax is None:
+        ax = plt.gca()
+
+    x0, y0 = annotations[0].get_position()
+    x1, y1 = annotations[1].get_position()
+    #x2 = y2 = 0
+
+    renderer = ax.figure.canvas.get_renderer()
+    for annotation in annotations:
+        #x, y = annotation.get_position()
+        #if x > x0 and y > y2:
+        #    x2 = x
+        #    y2 = y
+
+        text = annotation.get_text()
+        if text.startswith('samples'):
+            # Leaf node
+            if formatter is not None:
+                s, v = text.split('\n')
+                s, v = formatter(s, v)
+                text = '\n'.join([s, v])
+        elif text.startswith('\n'):
+            # (...)
+            pass
+        else:
+            # Inner node
+            l, s, v = text.split('\n')
+            if l in label_mapper:
+                l = label_mapper[l]
+            elif re.match(r'\w+\s+<=\s+\w+', l):
+                l1, l2 = l.split(' <= ')
+                l1 = label_mapper.get(l1, l1)
+                l2 = float(l2)
+                l = l1 + ' $\leq$ ' + '{:.{prec}f}'.format(l2, prec=precision)
+            if formatter is not None:
+                s, v = formatter(s, v)
+            text = '\n'.join([l, s, v])
+        annotation.set_text(text)
+        annotation.set(ha='center')
+        annotation.draw(renderer)
+
+    if annotate_arrows:
+        kwargs = dict(
+            ha='center',
+            va='center',
+        )
+        ax.annotate('True', (x1 + (x0-x1) / 2, y0 - (y0-y1) / 3), **kwargs)
+        ax.annotate('False', (x0 + (x0-x1) / 2, y0 - (y0-y1) / 3), **kwargs)
