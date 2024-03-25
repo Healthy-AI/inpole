@@ -481,7 +481,8 @@ class ADNIData(Data):
 
 
 class SwitchData(RAData):
-    def __init__(self, **kwargs):
+    def __init__(self, *, include_therapies=False, **kwargs):
+        self.include_therapies = include_therapies
         super().__init__(**kwargs)
 
     def _add_previous_treatment(self, X, data):
@@ -489,12 +490,18 @@ class SwitchData(RAData):
         groups = data[self.GROUP]
         y_encoded = LabelEncoder().fit_transform(y)
         y = pd.Series(y_encoded, index=y.index, name=y.name)
-        y = y.groupby(groups).diff().fillna(0)
-        y = y != 0
-        previous_action = y.groupby(groups).shift(fill_value=False)
+        y = y.groupby(groups).diff()
+        y = y.where(y.isna(), y != 0)  # Keep the NaNs
+        previous_action = y.groupby(groups).shift()
+        previous_action.replace({True: 'switch', False: 'stay'}, inplace=True)
+        previous_action.fillna(self.fillna_value, inplace=True)
         previous_action.rename('prev_action', inplace=True)
+        previous_action = previous_action.astype('category')
         X = pd.concat([X, previous_action], axis=1)
-        return X
+        if self.include_therapies:
+            return super()._add_previous_treatment(X, data)
+        else:
+            return X
     
     def load(self):
         X, y, groups = super().load()
