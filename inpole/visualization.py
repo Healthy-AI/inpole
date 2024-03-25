@@ -465,6 +465,7 @@ def plot_tree(
         kwargs = dict(
             ha='center',
             va='center',
+            fontsize=fontsize,
         )
         ax.annotate('True', (x1 + (x0-x1) / 2, y0 - (y0-y1) / 3), **kwargs)
         ax.annotate('False', (x0 + (x0-x1) / 2, y0 - (y0-y1) / 3), **kwargs)
