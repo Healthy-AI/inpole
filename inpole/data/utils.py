@@ -152,7 +152,7 @@ class SequentialDataset(Dataset):
         Xg = pd.DataFrame(X)
         c_group = Xg.columns[-1]
         sequences, targets = [], []
-        for _, sequence in Xg.groupby(by=c_group):
+        for _, sequence in Xg.groupby(by=c_group, sort=False):
             sequence = sequence.drop(c_group, axis=1)
             sequence = sequence.astype(np.float32)
             sequences += [sequence]
