@@ -313,7 +313,7 @@ class TreeExporter(_MPLTreeExporter):
             precision=precision,
             fontsize=fontsize,
         )
-
+    
     def _make_tree(self, node_id, et, criterion, depth=0):
         name = self.node_to_str(et, node_id, criterion=criterion)
         if (
@@ -323,7 +323,7 @@ class TreeExporter(_MPLTreeExporter):
             name = self.node_to_str(et, node_id, criterion=criterion)
             if not name.startswith('samples'):
                 splits = name.split('\n')
-                splits[0] = 'null'
+                splits[0] = 'null'                
                 name = '\n'.join(splits)
             return Tree(name, node_id)
         return super()._make_tree(node_id, et, criterion, depth)
@@ -343,7 +343,7 @@ class TreeExporter(_MPLTreeExporter):
             kwargs["fontsize"] = self.fontsize
 
         xy = ((node.x + 0.5) / max_x, (max_y - node.y - 0.5) / max_y)
-
+            
         if self.max_depth is None or depth <= self.max_depth:
             if self.filled:
                 kwargs["bbox"]["fc"] = self.get_fill_color(tree, node.tree.node_id)
@@ -358,8 +358,13 @@ class TreeExporter(_MPLTreeExporter):
                     (max_y - node.parent.y - 0.5) / max_y,
                 )
                 if node.tree.label.startswith('null'):
+                    samples_match = re.search(r'samples = ([\d.]+)%', node.tree.label)
+                    value_match = re.search(r'value = \[[\d.]+, ([\d.]+)\]', node.tree.label)
+                    value_group = str(value_match.group(0))
+                    sample_group = str(samples_match.group(0))
+
                     kwargs["bbox"]["fc"] = "lightgrey"
-                    ax.annotate("\n  (...)  \n", xy_parent, xy, **kwargs)
+                    ax.annotate("\n  (...)  \n" + sample_group + "\n" + value_group, xy_parent, xy, **kwargs)
                 else:
                     ax.annotate(node.tree.label, xy_parent, xy, **kwargs)
             if not node.tree.label.startswith('null'):
@@ -372,6 +377,7 @@ class TreeExporter(_MPLTreeExporter):
             )
             kwargs["bbox"]["fc"] = "lightgrey"
             ax.annotate("\n  (...)  \n", xy_parent, xy, **kwargs)
+
 
 
 def get_node_ids_along_path(tree, path):
@@ -442,13 +448,20 @@ def plot_tree(
                 s, v = formatter(s, v)
                 text = '\n'.join([s, v])
         elif text.startswith('\n'):
-            # (...)
-            pass
+            space, l, s, v = text.split('\n')
+            if formatter is not None:
+                s, v = formatter(s, v)
+            text = '\n'.join([space,l, s, v])
         else:
             # Inner node
             l, s, v = text.split('\n')
             if l in label_mapper:
                 l = label_mapper[l]
+            elif re.match(r'duration_ra\s+<=\s+\w+', l):
+                l1, l2 = l.split(' <= ')
+                l1 = label_mapper.get(l1, l1)
+                l2 = float(l2)
+                l = l1 + ' $\leq$ ' + '{:.{prec}f} years'.format(l2, prec=precision)
             elif re.match(r'\w+\s+<=\s+\w+', l):
                 l1, l2 = l.split(' <= ')
                 l1 = label_mapper.get(l1, l1)
