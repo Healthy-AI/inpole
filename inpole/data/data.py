@@ -104,6 +104,7 @@ class Data(ABC):
         test_size=0.2,
         seed=None,
         sample_size=None,
+        include_context_variables=True,
         include_previous_treatment=True,
         fillna_value=None,
         aggregate_history=False,
@@ -118,6 +119,7 @@ class Data(ABC):
         self.test_size = test_size
         self.seed = seed
         self.sample_size = sample_size
+        self.include_context_variables = include_context_variables
         self.include_previous_treatment = include_previous_treatment
         self.fillna_value = fillna_value
         self.aggregate_history = aggregate_history
@@ -264,6 +266,9 @@ class Data(ABC):
     def _remove_previous_treatment(self, X):
         return X
 
+    def _manipulate(self, X, y, groups, data):
+        return X, y, groups
+
     def load(self):
         if self.path.endswith('.csv'):
             data = pd.read_csv(self.path)
@@ -276,7 +281,9 @@ class Data(ABC):
         if self.sample_size is not None:
             data = self._sample(data)
 
-        if hasattr(self, 'FEATURES'):
+        if not self.include_context_variables:
+            X = pd.DataFrame(index=data.index)
+        elif hasattr(self, 'FEATURES'):
             X = data[self.FEATURES]
         else:
             columns = self.TREATMENT + [self.GROUP] \
@@ -302,6 +309,11 @@ class Data(ABC):
         
         if self.aggregate_history:
             X = self._add_columns_to_aggregate(X)
+        
+        X, y, groups = self._manipulate(X, y, groups, data)
+
+        if self.shift_periods > 0:
+            X = self._add_shifted_inputs(X, groups)
         
         return X, y, groups
 
@@ -367,11 +379,6 @@ class Data(ABC):
 
     def get_splits(self):
         X, y, groups = self.load()
-        if self.shift_periods > 0:
-            # We shift the data here and not in `self.load` because we want to
-            # load all datasets in the same way. For the RA data, we need to
-            # remove non-registry visits before shifting the data.
-            X = self._add_shifted_inputs(X, groups)
         return self._split_grouped_data(X, y, groups)
 
 
@@ -423,14 +430,13 @@ class RAData(Data):
             remainder='passthrough'
         )
 
-    def load(self):
-        X, y, groups = super().load()
-
-        is_registry_visit = ~X.visitdate.isna()
-        X = X.loc[is_registry_visit].drop(columns='visitdate')
+    def _manipulate(self, X, y, groups, data):
+        is_registry_visit = ~data.visitdate.isna()
+        X = X.loc[is_registry_visit]
+        if 'visitdate' in X.columns:
+            X = X.drop(columns='visitdate')
         y = y.loc[is_registry_visit]
         groups = groups.loc[is_registry_visit]
-
         return X, y, groups
 
 
@@ -481,7 +487,8 @@ class ADNIData(Data):
 
 
 class SwitchData(RAData):
-    def __init__(self, **kwargs):
+    def __init__(self, *, include_therapies=False, **kwargs):
+        self.include_therapies = include_therapies
         super().__init__(**kwargs)
 
     def _add_previous_treatment(self, X, data):
@@ -489,12 +496,18 @@ class SwitchData(RAData):
         groups = data[self.GROUP]
         y_encoded = LabelEncoder().fit_transform(y)
         y = pd.Series(y_encoded, index=y.index, name=y.name)
-        y = y.groupby(groups).diff().fillna(0)
-        y = y != 0
-        previous_action = y.groupby(groups).shift(fill_value=False)
+        y = y.groupby(groups).diff()
+        y = y.where(y.isna(), y != 0)  # Keep the NaNs
+        previous_action = y.groupby(groups).shift()
+        previous_action.replace({True: 'switch', False: 'stay'}, inplace=True)
+        previous_action.fillna(self.fillna_value, inplace=True)
         previous_action.rename('prev_action', inplace=True)
+        previous_action = previous_action.astype('category')
         X = pd.concat([X, previous_action], axis=1)
-        return X
+        if self.include_therapies:
+            return super()._add_previous_treatment(X, data)
+        else:
+            return X
     
     def load(self):
         X, y, groups = super().load()

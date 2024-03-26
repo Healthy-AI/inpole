@@ -69,7 +69,7 @@ def _hparams(estimator_name, experiment, seed):
 
     if estimator_name == 'rulefit':
         _hparam('tree_size', 4, lambda r: r.choice([2, 3, 4, 5]))
-        _hparam('max_rules', 30, lambda r: r.choice([10, 20, 30, 50, 75, 100]))
+        _hparam('max_rules', 30, lambda r: r.choice([10, 20, 30, 40, 50, 75, 100]))
         _hparam('model_type', 'rl', lambda r: 'rl')
         _hparam('lin_standardise', False, lambda r: False)
         _hparam('memory_par', 0.1, lambda r: r.choice([0.01, 0.1]))
@@ -77,6 +77,10 @@ def _hparams(estimator_name, experiment, seed):
     # =========================================================================
     # Experiment-DEPENDENT parameters (RA/Switch).
     # =========================================================================
+        
+    if experiment == 'switch' and estimator_name == 'dt':
+        hparams.pop('max_depth')
+        _hparam('max_depth', None, lambda r: r.choice([2, 3, 4, 5, 6, 7, 8]))
 
     if experiment in ['ra', 'switch'] and estimator_name not in OTHER_ESTIMATORS:
         _hparam('lr', 1.0e-3, lambda r: 10. ** r.choice([-3, -2]))

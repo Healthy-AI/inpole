@@ -86,7 +86,7 @@ def get_model_complexity(model):
     elif isinstance(model, FRLClassifier):
         return sum(len(rule) for rule in model.rule_list if isinstance(rule, tuple))
     elif isinstance(model, RuleFitClassifier):
-        return len([len(str(r).split('&')) for r in model.rule_ensemble.rules])
+        return sum([len(str(r).split('&')) for r in model.rule_ensemble.rules])
         # return np.count_nonzero(model.coef_)
     elif isinstance(model, (ProNetClassifier, ProSeNetClassifier)):
         return model.module_.num_prototypes
@@ -124,7 +124,8 @@ class ClassifierMixin:
         'auc': {'lower_is_better': False},
         'accuracy': {'lower_is_better': False},
         'ece': {'lower_is_better': True},
-        'sce': {'lower_is_better': True}
+        'sce': {'lower_is_better': True},
+        'brier': {'lower_is_better': True}
     }
 
     def score(self, X, y, metric='auc', **kwargs):
@@ -154,6 +155,14 @@ class ClassifierMixin:
         if metric == 'accuracy':
             yp = self.predict(X)
             return metrics.accuracy_score(y, yp, **kwargs)
+
+        if metric == 'brier':
+            if len(self.classes_) > 2:
+                # Brier score is not defined for multiclass classification.
+                return float('nan')
+            else:
+                yp = self.predict_proba(X)[:, 1]
+                return metrics.brier_score_loss(y, yp, **kwargs)
 
         if metric == 'ece':
             yp = self.predict_proba(X)
