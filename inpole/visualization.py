@@ -31,6 +31,11 @@ def visualize_encodings(encodings, prototype_indices, frac=0.1, figsize=(6,4),
     
     # Transform the encodings.
     encodings_pca = pca.transform(encodings)
+
+    if hue is not None and hue_key is not None:
+        hue_mapping = {0: 'No', 1: 'Yes'}
+        hue = [hue_mapping.get(item, item) for item in hue]
+    
     _encodings = {
         'PC 1': encodings_pca[:, 0],
         'PC 2': encodings_pca[:, 1],
@@ -44,7 +49,7 @@ def visualize_encodings(encodings, prototype_indices, frac=0.1, figsize=(6,4),
     
     # Transform the prototypes.
     prototypes_pca = encodings_pca[prototype_indices]
-    prototypes_hue = hue[prototype_indices] if hue is not None else None
+    prototypes_hue = [hue[i] for i in prototype_indices] if hue is not None else None    
     _prototypes = {
         'PC 1': prototypes_pca[:, 0], 
         'PC 2': prototypes_pca[:, 1],
@@ -54,13 +59,13 @@ def visualize_encodings(encodings, prototype_indices, frac=0.1, figsize=(6,4),
     _prototypes = pd.DataFrame(_prototypes)
     
     fig, ax = plt.subplots(figsize=figsize)
-    
+
     common_kwargs = {'x': 'PC 1', 'y': 'PC 2', 'ax': ax}
     if hue is not None:
         common_kwargs['hue'] = hue_key
     
     sns.scatterplot(data=_encodings, alpha=0.7, size='Prototype', 
-                    sizes=(20, 100), size_order=['Yes', 'No'],
+                    sizes=(20, 100), size_order=['Yes', 'No'], hue_order=['No','Yes'],
                     **common_kwargs)
     
     n_prototypes = prototypes_pca.shape[0]
