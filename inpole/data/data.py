@@ -254,7 +254,7 @@ class Data(ABC):
             assert len(fillna_value) == len(self.TREATMENT)
             fillna_value = dict(zip(mapper.values(), fillna_value))
             # @TODO: Handle the case when `previous_treatment` is a pandas Categorical.
-            previous_treatment = previous_treatment.apply('fillna', value=fillna_value)
+            previous_treatment.apply('fillna', value=fillna_value, inplace=True)
         else:
             previous_treatment.rename('prev_' + self.TREATMENT, inplace=True)
             if not self.fillna_value in previous_treatment.cat.categories:
@@ -480,6 +480,8 @@ class ADNIData(Data):
         )
 
     def _add_previous_treatment(self, X, data):
+        if not self.include_context_variables:
+            X = data['MRI_previous_outcome']
         return X
     
     def _remove_previous_treatment(self, X):
