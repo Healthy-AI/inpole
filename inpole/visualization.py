@@ -82,72 +82,96 @@ def visualize_encodings(encodings, prototype_indices, frac=0.1, figsize=(6,4),
             ax.annotate(i, xy=(a[0]+0.1, a[1]))
 
     title = 'Prototype' if hue is None else None
-    ax.legend(loc="upper left", bbox_to_anchor=(1, 1), title=title)
+    ax.legend(loc="upper right", title=title)
 
     return fig, ax
 
+def find_median_IQR(x):
+    x_median = int(x.median())
+    x_25th = int(x.quantile(0.25))
+    x_75th = int(x.quantile(0.75))
+    return x_median, x_25th, x_75th
 
-def visualize_prototype_ra(X, prototype_index, color_mapper=None):
-    if color_mapper is None:
-        labels = X.therapy.cat.categories.tolist()
-        colors = sns.color_palette(cc.glasbey, n_colors=len(labels))
-        color_mapper = {t: c for t, c in zip(labels, colors)}
+def visualize_prototype_ra(X, prototype_indices, closest_sequences, color_mapper = None, 
+                           comorbidities = None, targeted_adverse_events = None, infections = None):
+    labels = X.therapy.cat.categories.tolist()
+    colors_list = sns.color_palette("tab10", n_colors=len(prototype_indices))  
+    markers_list = ['o', 's', '^', 'p', '*', 'D', 'v', '<', '>'] 
 
-    pid = X.id.iat[prototype_index]
-    x = X[X.id == pid]
-    
-    d = (x.date.max() - x.date.min()).days / 10
-    if d == 0: d = 10
-    
-    fig = plt.figure(figsize=(6, 4))
-    
-    gs = gridspec.GridSpec(2, 1, height_ratios=[4, 1])
-    
-    # Plot CDAI.
-    ax1 = plt.subplot(gs[0])
-    ax1.set_title('CDAI')
-    
-    i = X.index[prototype_index]
-    t = list(x.index).index(i)
-    plot_kwargs = {'c': 'k', 'marker': 'o', 'ms': 5}
-    ax1.plot(x.date.iloc[:t+1], x.cdai.iloc[:t+1], **plot_kwargs)
-    ax1.plot(x.date.iloc[t:], x.cdai.iloc[t:], ls='dashed', **plot_kwargs)
-    ax1.scatter(x.date.iloc[t], x.cdai.iloc[t], c='k', marker='o', s=50)
-    
-    dates = x.date.tolist()
-    dates += [dates[-1] + timedelta(days=d)]
-    ones = np.ones(len(dates))
-    ax1.plot(dates, ones, alpha=0)
-    
-    ax1.set_xticks(x.date)
-    ax1.set_xticklabels([])
-    ax1.set_ylim(0, 76)
-    
+    fig, ax = plt.subplots(figsize=(6,4))
+    all_max_time_steps = []
+    prototypes_dfs = {}
+    prototype_info = ""
+
+    for idx, (prototype_idx, sequences) in enumerate(closest_sequences.items()):
+        Xt = pd.DataFrame(columns=X.columns.tolist() + ['time_step'])
+        pid = X.id.iloc[sequences].unique()
+        proto_id = X.id.iloc[prototype_idx]
+        
+        n_switch = 0
+        for p in pid:
+            xs_date = X[X.id == p].sort_values(by='date')
+            xs_date['time_step'] = xs_date.groupby('id').cumcount() + 1
+            Xt = pd.concat([Xt, xs_date], ignore_index = False)
+            unique_therapy = X[X.id == p].therapy.unique()
+            
+            if len(unique_therapy) == 1:
+                switch = 0
+            else:
+                switch = len(unique_therapy)-1
+            n_switch += switch
+                    
+        prototypes_dfs[prototype_idx] = Xt
+                
+        # find prototype index
+        t = list(Xt.index).index(prototype_idx)
+
+        cdai_stat = Xt.groupby('time_step')['cdai'].agg(['mean', 'std'])
+        cdai_stat = cdai_stat.dropna()
+        cdai_stat['std_pos'] = cdai_stat['mean'] + cdai_stat['std']
+        cdai_stat['std_neg'] = cdai_stat['mean'] - cdai_stat['std']
+        cdai_stat.reset_index(inplace=True)
+
+        # visulize cdai
+        color = colors_list[idx % len(colors_list)]  
+        marker = markers_list[idx % len(markers_list)]
+
+        ax.plot(cdai_stat['time_step'].iloc[:t+1], cdai_stat['mean'].iloc[:t+1], marker=marker, color=color, markersize=5)
+        ax.plot(cdai_stat['time_step'].iloc[t:], cdai_stat['mean'].iloc[t:], ls='dashed', marker=marker, color=color, markersize=5)
+        ax.scatter(cdai_stat['time_step'].iloc[t], cdai_stat['mean'].iloc[t], marker=marker, color=color, s=60, label=f'Prototype {idx+1}')
+        ax.fill_between(cdai_stat['time_step'], cdai_stat['std_pos'], cdai_stat['std_neg'], color=color, alpha=0.2)
+        all_max_time_steps.append(cdai_stat['time_step'].max()) 
+
+        # Info box
+        x = Xt[Xt.index.isin(sequences)]
+        age, age_25th, age_75th = find_median_IQR(x['age'])
+        duration_ra, duration_ra_25th, duration_ra_75th = find_median_IQR(x['duration_ra'])
+        pain, pain_25th, pain_75th = find_median_IQR(x['pt_pain'])
+        seatedbp1, seatedbp1_25th, seatedbp1_75th = find_median_IQR(x['seatedbp1'])
+        n_comor = sum(x[col].eq(1).any() for col in comorbidities) 
+        n_preg = x['pregnant_current'].sum()
+        n_tae = sum(x[col].eq(1).any() for col in targeted_adverse_events)
+        n_infection = sum(x[col].eq(1).any() for col in infections)
+        
+        prototype_info += f"Prototype {idx + 1}:\n Age: {age}({age_25th}, {age_75th})\n" \
+                            f"RA Duration: {duration_ra}({duration_ra_25th}, {duration_ra_75th})\n" \
+                            f"Systolic BP: {seatedbp1}({seatedbp1_25th}, {seatedbp1_75th})\n" \
+                            f"Pain: {pain}({pain_25th}, {pain_75th})/100\n Comorbidities: {n_comor}\n" \
+                            f"Infections: {n_infection}\n Switches: {n_switch}\n\n"
+        
+    max_time_step = max(all_max_time_steps)
+    ax.set_xticks(range(1, int(max_time_step) + 1))
+    ax.set_xlabel('Stage')
+    ax.set_ylabel('CDAI')
+    ax.legend(loc='upper left')
+    ax.set_ylim(0, 60) 
+
     kwargs = {'alpha': 0.15, 'zorder': 0}
-    ax1.axhspan(0, 2.8, facecolor='g', **kwargs)
-    ax1.axhspan(2.8, 10, facecolor='y', **kwargs)
-    ax1.axhspan(10, 22, facecolor='orange', **kwargs)
-    ax1.axhspan(22, 76, facecolor='r', **kwargs)
-    
-    # Plot therapy.
-    ax2 = plt.subplot(gs[1])
-    ax2.set_title('Therapy')
-    
-    for i in range(len(x)):
-        xmin = x.date.iat[i]
-        xmax = x.date.iat[i+1] if i+1 < len(x) else xmin + timedelta(days=d)
-        color = color_mapper[x.therapy.iat[i]]
-        ax2.axvspan(xmin, xmax, facecolor=color)
-    
-    ax2.set_xticks(x.date)
-    ax2.set_xticklabels(x.date.dt.year, rotation=90)
-    ax2.set_yticks([])
-    
-    unique_therapies = x.therapy.unique()
-    artists = [Patch(color=color_mapper[t]) for t in unique_therapies]
-    ax2.legend(artists, unique_therapies, bbox_to_anchor=(1, 0),
-               loc='lower left', title='Therapy')
-    
+    ax.axhspan(0, 2.8, facecolor='g', **kwargs)
+    ax.axhspan(2.8, 10, facecolor='y', **kwargs)
+    ax.axhspan(10, 22, facecolor='orange', **kwargs)
+    ax.axhspan(22, 60, facecolor='r', **kwargs)
+    fig.text(0.92, 0.12, prototype_info.strip(), fontsize=12, bbox=dict(facecolor='white', alpha=0.2))
     return fig
 
 
@@ -403,7 +427,6 @@ def get_node_ids_along_path(tree, path):
 
     return node_ids
 
-
 def plot_tree(
     decision_tree,
     max_depth=None,
@@ -453,10 +476,10 @@ def plot_tree(
                 s, v = formatter(s, v)
                 text = '\n'.join([s, v])
         elif text.startswith('\n'):
-            space, l, s, v = text.split('\n')
+            _, l, s, v = text.split('\n')
             if formatter is not None:
                 s, v = formatter(s, v)
-            text = '\n'.join([space,l, s, v])
+            text = '\n'.join([l, s, v])
         else:
             # Inner node
             l, s, v = text.split('\n')
