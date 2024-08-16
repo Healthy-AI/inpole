@@ -2,7 +2,6 @@ import os
 import re
 import warnings
 from pathlib import Path
-from datetime import timedelta
 from os.path import join
 
 import joblib
@@ -11,13 +10,12 @@ import numpy as np
 import colorcet as cc
 import seaborn as sns
 import matplotlib.pyplot as plt
-from matplotlib.patches import Patch
-from matplotlib import gridspec
 from seaborn._statistics import EstimateAggregator
 from sklearn.decomposition import PCA
 from amhelpers.config_parsing import load_config
 from sklearn.tree._export import _MPLTreeExporter
 from sklearn.tree._reingold_tilford import Tree
+from pandas.api.types import is_categorical_dtype, is_bool_dtype
 
 from inpole.pipeline import _get_estimator_params
 from inpole.utils import merge_dicts
@@ -86,11 +84,13 @@ def visualize_encodings(encodings, prototype_indices, frac=0.1, figsize=(6,4),
 
     return fig, ax
 
+
 def find_median_IQR(x):
     x_median = int(x.median())
     x_25th = int(x.quantile(0.25))
     x_75th = int(x.quantile(0.75))
     return x_median, x_25th, x_75th
+
 
 def visualize_prototype_ra(X, prototype_indices, closest_sequences, color_mapper = None, 
                            comorbidities = None, targeted_adverse_events = None, infections = None):
@@ -408,7 +408,6 @@ class TreeExporter(_MPLTreeExporter):
             ax.annotate("\n  (...)  \n", xy_parent, xy, **kwargs)
 
 
-
 def get_node_ids_along_path(tree, path):
     node_ids = [0]
 
@@ -426,6 +425,7 @@ def get_node_ids_along_path(tree, path):
             raise ValueError("Invalid direction. Use 'l' for left or 'r' for right.")
 
     return node_ids
+
 
 def plot_tree(
     decision_tree,
@@ -510,3 +510,85 @@ def plot_tree(
         )
         ax.annotate('True', (x1 + (x0-x1) / 2, y0 - (y0-y1) / 3), **kwargs)
         ax.annotate('False', (x0 + (x0-x1) / 2, y0 - (y0-y1) / 3), **kwargs)
+
+
+def describe_categorical(D):
+    assert (D.apply(is_categorical_dtype) | D.apply(is_bool_dtype)).all()
+    
+    index_tuples = []
+    out = {'Counts': [], 'Proportions': []}
+
+    for v in D:
+        s = D[v]
+
+        if is_bool_dtype(s):
+            s = s.astype('category')
+            s = s.cat.rename_categories({True: 'yes', False: 'no'})
+        
+        table = pd.Categorical(s).describe()
+        
+        # Exclude NaNs when computing proportions.
+        N = table.counts.values[:-1].sum() if -1 in table.index.codes \
+            else table.counts.values.sum()
+        proportion = [round(100 * x, 1) for x in table.counts / N]
+        table.insert(1, 'proportion', proportion)
+
+        try:
+            from .corevitas import variables
+            categories = variables[s.name].pop('categories', None)
+        except ModuleNotFoundError:
+            categories = None
+        except KeyError:
+            categories = None
+        
+        if categories is not None:
+            table.index = table.index.rename_categories(
+                categories
+            )
+
+        for c in table.index:
+            index_tuples.append((v, N, c))
+        out['Counts'].extend(table.counts)
+        out['Proportions'].extend(table.proportion)
+
+    index = pd.MultiIndex.from_tuples(
+        index_tuples, names=['Variable', 'No. samples', 'Value']
+    )
+    return pd.DataFrame(out, index=index)
+
+
+def describe_numerical(data):
+    table = data.describe().T
+    table.rename(columns={'count': 'No. samples'}, inplace=True)
+    return table.drop(
+        columns=['mean', 'std', 'min', 'max']
+    )
+
+
+def display_dataframe(
+    df,
+    caption=None,
+    new_index=None,
+    new_columns=None,
+    hide_index=False,
+    precision=2
+):
+    def set_style(styler):
+        if caption is not None:
+            styler.set_caption(caption)
+        if new_index is not None:
+            styler.relabel_index(new_index, axis=0)
+        if new_columns is not None:
+            styler.relabel_index(new_columns, axis=1)
+        if hide_index:
+            styler.hide(axis='index')
+        styler.format(precision=precision)
+        return styler
+    
+    display_everything = (
+        'display.max_rows', None,
+        'display.max_columns', None,
+    )
+    
+    with pd.option_context(*display_everything):
+        return df.style.pipe(set_style)
