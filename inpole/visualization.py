@@ -153,10 +153,10 @@ def visualize_prototype_ra(X, prototype_indices, closest_sequences, color_mapper
         n_tae = sum(x[col].eq(1).any() for col in targeted_adverse_events)
         n_infection = sum(x[col].eq(1).any() for col in infections)
         
-        prototype_info += f"Prototype {idx + 1}:\n Age: {age}({age_25th}, {age_75th})\n" \
-                            f"RA Duration: {duration_ra}({duration_ra_25th}, {duration_ra_75th})\n" \
-                            f"Systolic BP: {seatedbp1}({seatedbp1_25th}, {seatedbp1_75th})\n" \
-                            f"Pain: {pain}({pain_25th}, {pain_75th})/100\n Comorbidities: {n_comor}\n" \
+        prototype_info += f"Prototype {idx + 1}:\n Age: {age} ({age_25th}, {age_75th})\n" \
+                            f"RA duration: {duration_ra} ({duration_ra_25th}, {duration_ra_75th})\n" \
+                            f"Systolic BP: {seatedbp1} ({seatedbp1_25th}, {seatedbp1_75th})\n" \
+                            f"Pain (1--100): {pain} ({pain_25th}, {pain_75th})\n Comorbidities: {n_comor}\n" \
                             f"Infections: {n_infection}\n Switches: {n_switch}\n\n"
         
     max_time_step = max(all_max_time_steps)
@@ -393,7 +393,7 @@ class TreeExporter(_MPLTreeExporter):
                     sample_group = str(samples_match.group(0))
 
                     kwargs["bbox"]["fc"] = "lightgrey"
-                    ax.annotate("\n  (...)  \n" + sample_group + "\n" + value_group, xy_parent, xy, **kwargs)
+                    ax.annotate("(...)\n" + sample_group + "\n" + value_group, xy_parent, xy, **kwargs)
                 else:
                     ax.annotate(node.tree.label, xy_parent, xy, **kwargs)
             if not node.tree.label.startswith('null'):
