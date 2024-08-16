@@ -51,13 +51,12 @@ if __name__ == '__main__':
     subsets = ['valid', 'test']
     metrics = config['metrics']
     for subset in subsets:
-        predict(config, pipeline, args.estimator, subset,
-                metrics=metrics)
+        predict(config, pipeline, args.estimator, subset, metrics=metrics)
     
     if config['experiment'] == 'ra':
         for subset in subsets:
-            predict(config, pipeline, args.estimator, subset,
-                    metrics=metrics, switches_only=True)
+            predict(config, pipeline, args.estimator, subset, metrics=metrics, 
+                    switches_only=True)
     
     if args.estimator in ['sdt', 'rdt', 'truncated_rdt']:
         preprocessor, estimator = pipeline.named_steps.values()
