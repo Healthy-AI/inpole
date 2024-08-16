@@ -35,7 +35,10 @@ def is_net_estimator(estimator_name):
 
 
 def _get_previous_therapy_index(feature_names, prev_therapy_prefix):
-    prev_therapy_columns = [s for s in feature_names if s.startswith(prev_therapy_prefix)]
+    prev_therapy_columns = [
+        s for s in feature_names 
+        if (s.startswith(prev_therapy_prefix) and not 'agg' in s)
+    ]
     prev_therapy_index = np.array(
         [np.flatnonzero(feature_names == c).item() for c in prev_therapy_columns]
     )
@@ -46,7 +49,7 @@ def _separate_switches(preprocessor, treatment, X, y):
     assert isinstance(treatment, str)
 
     feature_names = get_feature_names(preprocessor)
-    prefix = treatment + '_1_'
+    prefix = f'prev_{treatment}_'
     prev_therapy_index = _get_previous_therapy_index(feature_names, prefix)
     
     Xt = preprocessor.transform(X)
@@ -103,7 +106,7 @@ def train(config, estimator_name, calibrate=False):
 
     if isinstance(estimator, SwitchPropensityEstimator):
         feature_names = get_feature_names(preprocessor, X_train, y_train)
-        prefix = data_handler.TREATMENT + '_1_'
+        prefix = f'prev_{data_handler.TREATMENT}_'
         prev_therapy_index = _get_previous_therapy_index(feature_names, prefix)
         fit_params['estimator__prev_therapy_index'] = prev_therapy_index
 
@@ -168,8 +171,7 @@ def predict(
     if switches_only:
         assert not isinstance(pipeline, CalibratedClassifierCV)
         preprocessor = pipeline.named_steps['preprocessor']
-        treatment = data_handler.TREATMENT
-        Xt_s, y_s = _separate_switches(preprocessor, treatment, X, y)
+        Xt_s, y_s = _separate_switches(preprocessor, data_handler.TREATMENT, X, y)
         data[-1] += '_s'
         scores = collect_scores(pipeline[-1], Xt_s, y_s, metrics, columns, data, labels)
     else:
