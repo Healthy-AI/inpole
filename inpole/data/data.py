@@ -108,6 +108,7 @@ class Data(ABC):
         include_previous_treatment=True,
         fillna_value=None,
         aggregate_history=False,
+        reduction='max',
         add_current_context=False,
         aggregate_exclude=None,
         shift_periods=0,
@@ -123,6 +124,7 @@ class Data(ABC):
         self.include_previous_treatment = include_previous_treatment
         self.fillna_value = fillna_value
         self.aggregate_history = aggregate_history
+        self.reduction = reduction
         self.add_current_context = add_current_context
         self.aggregate_exclude = aggregate_exclude
         self.shift_periods = shift_periods
@@ -184,9 +186,13 @@ class Data(ABC):
         """
         pass
 
-    def _aggregate_history(self, X, agg_index):
+    def _aggregate_history(self, X, agg_index, reduction='max'):
+        assert reduction in ['sum', 'min', 'max', 'mean']
         def func(x):
-            return x.max() if x.name in X.columns[agg_index] else x.iloc[-1]
+            if x.name in X.columns[agg_index]:
+                return eval(f'x.{reduction}()')
+            else:
+                return x.iloc[-1]
         X = pd.DataFrame(X)
         c_group = X.columns[-1]
         aggregates = []
@@ -200,8 +206,7 @@ class Data(ABC):
     
     def _add_columns_to_aggregate(self, X):
         mapper = {
-            c: f'{c}_agg' for c in X.columns
-            if c not in self.aggregate_exclude
+            c: f'{c}_agg' for c in X.columns if c not in self.aggregate_exclude
         }
         X_agg = X.rename(mapper, axis=1)
         if self.add_current_context:
@@ -216,7 +221,8 @@ class Data(ABC):
         steps = []
         if self.aggregate_history:
             aggregator = FunctionTransformer(self._aggregate_history,
-                                             feature_names_out=self._get_feature_names_out)
+                                             feature_names_out=self._get_feature_names_out,
+                                             kw_args={'reduction': self.reduction})
         else:
             aggregator = None
         if self.max_features is None:
@@ -245,6 +251,7 @@ class Data(ABC):
         grouped = data[self.TREATMENT].groupby(data[self.GROUP])
         previous_treatment = grouped.shift()
         if isinstance(self.TREATMENT, list):
+            assert not any(isinstance(dt, pd.CategoricalDtype) for dt in previous_treatment.dtypes)
             mapper = {c: 'prev_' + c for c in self.TREATMENT}
             previous_treatment.rename(columns=mapper, inplace=True)
             if not isinstance(self.fillna_value, list):
@@ -254,8 +261,9 @@ class Data(ABC):
             assert len(fillna_value) == len(self.TREATMENT)
             fillna_value = dict(zip(mapper.values(), fillna_value))
             # @TODO: Handle the case when `previous_treatment` is a pandas Categorical.
-            previous_treatment.apply('fillna', value=fillna_value, inplace=True)
+            previous_treatment = previous_treatment.apply('fillna', value=fillna_value)
         else:
+            assert previous_treatment.dtype == 'category'
             previous_treatment.rename('prev_' + self.TREATMENT, inplace=True)
             if not self.fillna_value in previous_treatment.cat.categories:
                 previous_treatment = previous_treatment.cat.add_categories(self.fillna_value)
@@ -431,10 +439,9 @@ class RAData(Data):
         )
 
     def _manipulate(self, X, y, groups, data):
-        is_registry_visit = ~data.visitdate.isna()
+        is_registry_visit = X.stage.ge(1)
         X = X.loc[is_registry_visit]
-        if 'visitdate' in X.columns:
-            X = X.drop(columns='visitdate')
+        X = X.drop(columns='stage')
         y = y.loc[is_registry_visit]
         groups = groups.loc[is_registry_visit]
         return X, y, groups
@@ -512,6 +519,9 @@ class SwitchData(RAData):
             return X
     
     def load(self):
+        # @TODO: Include non-registry visits when determining the action. `y`
+        # returned from super().load() does not contain therapies prescribed
+        # at non-registry visits.
         X, y, groups = super().load()
         y_encoded = LabelEncoder().fit_transform(y)
         y = pd.Series(y_encoded, index=y.index, name=y.name)
