@@ -100,7 +100,7 @@ def _hparams(estimator_name, experiment, seed):
     if experiment == 'ra' and estimator_name in [
         'pronet', 'prosenet', 'truncated_prosenet'
     ]:
-        _hparam('module__num_prototypes', 10, lambda r: r.choice([10, 20, 30]))
+        _hparam('module__num_prototypes', 10, lambda r: r.choice([5, 10, 15, 20, 25, 30]))
     
     if experiment == 'switch' and estimator_name in [
         'pronet', 'prosenet', 'truncated_prosenet'
