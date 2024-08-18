@@ -217,6 +217,10 @@ def load_best_pipeline(
         mask = (scores[sweep_parameter] == sweep_parameter_value) & \
             (scores.trial == trial) & \
             (scores.estimator_name == estimator_name)
+    if mask.sum() == 0:
+        raise FileNotFoundError(
+            f"No results found for model '{estimator_name}' in trial {trial}."
+        )
     experiment = scores[mask].exp.iat[0]
     results_path = join(experiment_path, sweep, f'trial_{trial:02d}', experiment)
     pipeline_path = join(results_path, 'pipeline.pkl')
