@@ -439,9 +439,10 @@ class RAData(Data):
         )
 
     def _manipulate(self, X, y, groups, data):
-        is_registry_visit = X.stage.ge(1)
+        is_registry_visit = data.stage.ge(1)
         X = X.loc[is_registry_visit]
-        X = X.drop(columns='stage')
+        if 'stage' in X.columns:
+            X = X.drop(columns='stage')
         y = y.loc[is_registry_visit]
         groups = groups.loc[is_registry_visit]
         return X, y, groups
