@@ -1,6 +1,7 @@
 import os
 from os.path import join
 import argparse
+import collections
 
 import pandas as pd
 import numpy as np
@@ -8,6 +9,7 @@ from amhelpers.config_parsing import load_config
 
 from inpole.data import get_data_handler_from_config
 from inpole.pipeline import load_best_pipeline
+from inpole.utils import _print_log
 
 
 all_estimators = ['riskslim', 'lr', 'dt', 'pronet', 'mlp', 'rdt', 'prosenet', 'rnn']
@@ -69,7 +71,7 @@ if __name__ == '__main__':
     else:
         raise ValueError(f"Unknown experiment '{args.experiment}'.")
     
-    out = []
+    out = collections.defaultdict(list)
     
     for state, experiment_path in all_paths.items():
         trial_dirs = os.listdir(join(experiment_path, 'sweep'))
@@ -80,22 +82,33 @@ if __name__ == '__main__':
                         experiment_path, trial, estimator, return_results_path=True)
                 except FileNotFoundError:
                     continue
+
+                _print_log(f"State: {state} | Estimator: {estimator} | Trial: {trial} | Time")
                 
                 config_path = join(results_path, 'config.yaml')
                 config = load_config(config_path)
                 data_handler = get_data_handler_from_config(config)
                 X, y = data_handler.get_splits()[-1]  # Test data
-            
+                X.reset_index(inplace=True)
+                
+                # Stratification w.r.t. time.
+                stages = X.groupby(data_handler.GROUP).cumcount()
+                for t in range(stages.max()):
+                    score = pipeline.score(X[stages==t], y[stages==t], metric='auc')
+                    out['time'] += [(t + 1, state, estimator, score)]
+
+                # Stratification w.r.t. patient groups.
                 Xg = X.groupby(data_handler.GROUP)
                 group_indices = [
                     np.concatenate([Xg.indices.get(id) for id in ids if id in Xg.groups])
                     for ids in patient_groups
                 ]
-
                 for group, indices in enumerate(group_indices, start=1):
-                    print(f"State: {state} | Estimator: {estimator} | Trial: {trial} | Group: {group}")
                     score = pipeline.score(X.iloc[indices], y[indices], metric='auc')
-                    out += [(group, state, estimator, score)]
-            
-    out = pd.DataFrame(out, columns=['Group', 'State', 'Estimator', 'Score'])
-    out.to_csv(join(args.out_path, 'stratified_scores.csv'), index=False)
+                    out['groups'] += [(group, state, estimator, score)]
+
+    out['time'] = pd.DataFrame(out['time'], columns=['Stage', 'State', 'Estimator', 'Score'])
+    out.to_csv(join(args.out_path, 'scores_time.csv'), index=False)
+
+    out['groups'] = pd.DataFrame(out['groups'], columns=['Group', 'State', 'Estimator', 'Score'])
+    out.to_csv(join(args.out_path, 'scores_groups.csv'), index=False)

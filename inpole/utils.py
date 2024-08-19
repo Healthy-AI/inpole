@@ -1,7 +1,13 @@
 import os
+import sys
 
 import torch
 import pandas as pd
+
+
+def _print_log(s):
+    print(s)
+    sys.stdout.flush()
 
 
 def seed_torch(seed):
