@@ -7,7 +7,8 @@ from .models.utils import expects_groups
 from .data.utils import (
     get_aggregation_index,
     check_fit_preprocessor,
-    get_feature_names
+    get_feature_names,
+    get_shifted_features
 )
 from .models import (
     SwitchPropensityEstimator,
@@ -35,9 +36,14 @@ def is_net_estimator(estimator_name):
 
 
 def _get_previous_therapy_index(feature_names, prev_therapy_prefix):
+    shifted_features = get_shifted_features(feature_names)
     prev_therapy_columns = [
         s for s in feature_names 
-        if (s.startswith(prev_therapy_prefix) and not 'agg' in s)
+        if (
+            s.startswith(prev_therapy_prefix) 
+            and not 'agg' in s
+            and not s in shifted_features
+        )
     ]
     prev_therapy_index = np.array(
         [np.flatnonzero(feature_names == c).item() for c in prev_therapy_columns]
@@ -46,17 +52,26 @@ def _get_previous_therapy_index(feature_names, prev_therapy_prefix):
 
 
 def _separate_switches(preprocessor, treatment, X, y):
+    # We find therapy switches by comparing the current therapy to the previous
+    # one, as defined by the input features with the prefix "prev_treatment_". 
+    # In the RA case, this is different from comparing `y` to a shifted version 
+    # of `y` since non-registry events are included in the treatment history.
+
     assert isinstance(treatment, str)
 
     feature_names = get_feature_names(preprocessor)
     prefix = f'prev_{treatment}_'
     prev_therapy_index = _get_previous_therapy_index(feature_names, prefix)
-    
-    Xt = preprocessor.transform(X)
 
+    if len(prev_therapy_index) == 0:
+        raise ValueError(
+            f"No previous therapy columns found with prefix '{prefix}'."
+        )
+
+    Xt = preprocessor.transform(X)
     y_prev = np.argmax(Xt[:, prev_therapy_index], axis=1)
     switch = (y_prev != y)
-    return Xt[switch], y[switch]
+    return switch
 
 
 def train(config, estimator_name, calibrate=False):
@@ -171,11 +186,11 @@ def predict(
     if switches_only:
         assert not isinstance(pipeline, CalibratedClassifierCV)
         preprocessor = pipeline.named_steps['preprocessor']
-        Xt_s, y_s = _separate_switches(preprocessor, data_handler.TREATMENT, X, y)
+        switch = _separate_switches(preprocessor, data_handler.TREATMENT, X, y)
+        X, y = X[switch], y[switch]
         data[-1] += '_s'
-        scores = collect_scores(pipeline[-1], Xt_s, y_s, metrics, columns, data, labels)
-    else:
-        scores = collect_scores(pipeline, X, y, metrics, columns, data, labels)
+    
+    scores = collect_scores(pipeline, X, y, metrics, columns, data, labels)
 
     scores_file = join(config['results']['path'], 'scores.csv')
     try:

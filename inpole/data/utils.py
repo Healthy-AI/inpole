@@ -20,7 +20,7 @@ __all__ = [
     'get_feature_names',
     'drop_shifted_columns',
     'shift_variable',
-    'get_shifted_column_names',
+    'get_shifted_features',
     'pad_pack_sequences',
     'StandardDataset',
     'SequentialDataset',
@@ -67,7 +67,7 @@ def get_feature_names(preprocessor, X=None, y=None, trim=True):
 
 
 def drop_shifted_columns(X):
-    c_shifted = get_shifted_column_names(X)
+    c_shifted = get_shifted_features(X.columns)
     return X.drop(columns=c_shifted)
 
 
@@ -79,9 +79,10 @@ def shift_variable(grouped_variable, period, fillna=None):
     return shifted
 
 
-def get_shifted_column_names(X):
-    pattern = re.compile(r'_[1-9]\d*$')
-    return [c for c in X.columns if pattern.search(c)]
+def get_shifted_features(features):
+    p1 = re.compile(r'_[1-9]\d*$')
+    p2 = re.compile(r'_[1-9]\d*_')
+    return [f for f in features if p1.search(f) or p2.search(f)]
 
 
 def pad_pack_sequences(batch):

@@ -53,7 +53,14 @@ if __name__ == '__main__':
     for subset in subsets:
         predict(config, pipeline, args.estimator, subset, metrics=metrics)
     
-    #if config['experiment'] == 'ra':
+    #if (
+    #    config['experiment'] == 'ra'
+    #    and config['data']['include_previous_treatment']
+    #    and not (
+    #        config['data']['aggregate_history']
+    #        and not config['data']['add_current_context']
+    #    )
+    #):
     #    for subset in subsets:
     #        predict(config, pipeline, args.estimator, subset, metrics=metrics, 
     #                switches_only=True)
