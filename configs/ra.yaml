@@ -14,7 +14,7 @@ metrics:
 - sce
 
 data:
-  path: /mimer/NOBACKUP/groups/inpole/data/ra_Xgy_0816.pkl
+  path: /mimer/NOBACKUP/groups/inpole/data/ra_Xgy_0819.pkl
   valid_size: 0.2
   test_size: 0.2
   seed: 0
@@ -26,6 +26,7 @@ data:
   reduction: 'max'
   add_current_context: true
   aggregate_exclude: &exclude
+  - stage
   - year
   - age
   - gender
