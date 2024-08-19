@@ -260,7 +260,6 @@ class Data(ABC):
                 fillna_value = self.fillna_value
             assert len(fillna_value) == len(self.TREATMENT)
             fillna_value = dict(zip(mapper.values(), fillna_value))
-            # @TODO: Handle the case when `previous_treatment` is a pandas Categorical.
             previous_treatment = previous_treatment.apply('fillna', value=fillna_value)
         else:
             assert previous_treatment.dtype == 'category'
@@ -358,13 +357,18 @@ class Data(ABC):
 
         Xg = pd.concat([X, groups], axis=1)
 
-        gss = GroupShuffleSplit(n_splits=1, test_size=self.test_size, 
-                                random_state=self.seed)
-        ii_train, ii_test = next(gss.split(X, y, groups))
-        
-        Xg_train, y_train = Xg.iloc[ii_train], y[ii_train]
-        Xg_test, y_test = Xg.iloc[ii_test], y[ii_test]
-        groups_train = groups.iloc[ii_train]
+        if self.test_size > 0:
+            gss = GroupShuffleSplit(n_splits=1, test_size=self.test_size, 
+                                    random_state=self.seed)
+            ii_train, ii_test = next(gss.split(X, y, groups))
+            
+            Xg_train, y_train = Xg.iloc[ii_train], y[ii_train]
+            Xg_test, y_test = Xg.iloc[ii_test], y[ii_test]
+            groups_train = groups.iloc[ii_train]
+        else:
+            Xg_train, y_train = Xg, y
+            Xg_test, y_test = None, None
+            groups_train = groups
 
         if self.valid_size > 0:
             train_size = 1 - self.test_size
@@ -520,9 +524,9 @@ class SwitchData(RAData):
             return X
     
     def load(self):
-        # @TODO: Include non-registry visits when determining the action. `y`
-        # returned from super().load() does not contain therapies prescribed
-        # at non-registry visits.
+        # @TODO: Include non-registry visits when determining the action. 
+        # Note that `y` returned from super().load() does not contain therapies 
+        # prescribed at non-registry visits.
         X, y, groups = super().load()
         y_encoded = LabelEncoder().fit_transform(y)
         y = pd.Series(y_encoded, index=y.index, name=y.name)
