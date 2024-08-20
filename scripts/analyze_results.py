@@ -10,10 +10,9 @@ from amhelpers.config_parsing import load_config
 from inpole.data import get_data_handler_from_config
 from inpole.pipeline import load_best_pipeline
 from inpole.utils import _print_log
-from inpole.data import RAData
-
-
-all_estimators = ['riskslim', 'lr', 'dt', 'rulefit', 'pronet', 'mlp', 'rdt', 'prosenet', 'rnn']
+from inpole.data import RAData, SepsisData
+from inpole import ESTIMATORS
+from inpole.data.data import discretize_doses
 
 
 sepsis_paths = {
@@ -51,7 +50,7 @@ ra_paths = {
     r'$H_t$':                    '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2236_sweep',
 }
 
-ra_bins = [-8.0, -2.4, -0.6, 0.4, 4.4]
+ra_bins = [-9.0, -2.8, -1.0, 0.0, 2.6]
 
 
 def get_patient_groups(data, group, variable, bin_values):
@@ -90,13 +89,19 @@ if __name__ == '__main__':
     if args.experiment == 'sepsis':
         all_paths = sepsis_paths
         patient_groups = get_patient_groups(data, 'icustayid', 'NEWS2', sepsis_bins)
+        config = load_config(join(sepsis_paths['$A_{t-1}$'], 'default_config.yaml'))
+        Y_prev, y, _groups = SepsisData(**config['data']).load()  # S_t = A_{t-1}
+        Y_prev_discrete = Y_prev.apply(discretize_doses, raw=True, num_levels=5)
+        _, y_prev = np.unique(Y_prev_discrete, axis=0, return_inverse=True)
+        switch = (y != y_prev)
     elif args.experiment == 'ra':
         all_paths = ra_paths
         data = data[data.stage.ge(1)]
         patient_groups = get_patient_groups(data, 'id', 'cdai', ra_bins)
         config = load_config(join(ra_paths['$A_{t-1}$'], 'default_config.yaml'))
         X, y, _groups = RAData(**config['data']).load()
-        switch = (y != X.prev_therapy)
+        y_prev = X.prev_therapy
+        switch = (y != y_prev)
     else:
         raise ValueError(f"Unknown experiment '{args.experiment}'.")
     
@@ -105,25 +110,29 @@ if __name__ == '__main__':
     for state, experiment_path in all_paths.items():
         trial_dirs = os.listdir(join(experiment_path, 'sweep'))
         for trial in range(1, len(trial_dirs) + 1):
-            for estimator in all_estimators:
+            for estimator_name in ESTIMATORS:
                 try:
                     pipeline, results_path = load_best_pipeline(
-                        experiment_path, trial, estimator, return_results_path=True)
+                        experiment_path, trial, estimator_name, return_results_path=True)
                 except FileNotFoundError:
                     continue
 
-                _print_log(f"State: {state} | Estimator: {estimator} | Trial: {trial}")
+                _print_log(f"State: {state} | Estimator: {estimator_name} | Trial: {trial}")
                 
                 config_path = join(results_path, 'config.yaml')
                 config = load_config(config_path)
                 data_handler = get_data_handler_from_config(config)
                 X, y = data_handler.get_splits()[-1]  # Test data
+
+                preprocessor, estimator = pipeline.named_steps.values()
+                Xt = preprocessor.transform(X)
                 
                 # Stratification w.r.t. time.
                 stages = X.groupby(data_handler.GROUP).cumcount()
                 for t in range(stages.max()):
-                    score = pipeline.score(X[stages==t], y[stages==t], metric='auc')
-                    scores['time'] += [(t + 1, state, estimator, score)]
+                    #score = pipeline.score(X[stages==t], y[stages==t], metric='auc')
+                    score = estimator.score(Xt[stages==t], y[stages==t], metric='auc')
+                    scores['time'] += [(t + 1, state, estimator_name, score)]
 
                 # Stratification w.r.t. patient groups.
                 Xg = X.groupby(data_handler.GROUP)
@@ -132,14 +141,39 @@ if __name__ == '__main__':
                     for ids in patient_groups
                 ]
                 for group, indices in enumerate(group_indices, start=1):
-                    score = pipeline.score(X.iloc[indices], y[indices], metric='auc')
-                    scores['groups'] += [(group, state, estimator, score)]
+                    #score = pipeline.score(X.iloc[indices], y[indices], metric='auc')
+                    score = estimator.score(Xt[indices], y[indices], metric='auc')
+                    scores['groups'] += [(group, state, estimator_name, score)]
 
-                if args.experiment == 'ra':
-                    # Evalute model on switches only.
-                    s = switch[X.index]
-                    score = pipeline.score(X[s], y[s], metric='auc')
-                    scores['switches'] += [(state, estimator, score)]
+                # Misclassification.
+                #yp = pipeline.predict(X)
+                yp = estimator.predict(Xt)
+                stage = X.groupby('id').cumcount() + 1
+                incorrect = stage[y != yp].value_counts().sort_index()
+                frequency = incorrect / stage.value_counts().sort_index()
+                scores['frequency'] += [(state, estimator_name, frequency)]
+                
+                # Compute probability products.
+                #probas = pipeline.predict_proba(X)
+                probas = estimator.predict_proba(Xt)
+                probas_y = probas[np.arange(len(y)), y]
+                probas_y = pd.Series(probas_y, index=X.index)
+                probas_y_grouped = probas_y.groupby(X[data_handler.GROUP])
+                for t in range(1, stages.max() + 1):
+                    probas_yt = probas_y_grouped.filter(lambda x: len(x) >= t)
+                    rho = probas_yt.groupby(X[data_handler.GROUP]).prod()
+                    scores['rho'] += [(t, state, estimator_name, rho)]
+                rho = probas_y_grouped.prod()
+                scores['rho'] += [(-1, state, estimator_name, rho)]
+
+                # Evaluate model on treatment switches and non_treatment switches.
+                s = switch[X.index]
+                #score1 = pipeline.score(X[s], y[s], metric='auc')
+                score1 = estimator.score(Xt[s], y[s], metric='auc')
+                scores['switches'] += [(state, estimator_name, score1)]
+                #score2 = pipeline.score(X[~s], y[~s], metric='auc')
+                score2 = estimator.score(Xt[~s], y[~s], metric='auc')
+                scores['non-switches'] += [(state, estimator_name, score2)]
 
     df = pd.DataFrame(scores['time'], columns=['Stage', 'State', 'Estimator', 'Score'])
     file_name = f'scores_time_{args.experiment}.csv'
@@ -149,6 +183,14 @@ if __name__ == '__main__':
     file_name = f'scores_groups_{args.experiment}.csv'
     df.to_csv(join(args.out_path, file_name), index=False)
 
-    if args.experiment == 'ra':
-        df = pd.DataFrame(scores['switches'], columns=['State', 'Estimator', 'Score'])
-        df.to_csv(join(args.out_path, 'scores_switches_ra.csv'), index=False)
+    df = pd.DataFrame(scores['frequency'], columns=['State', 'Estimator', 'Frequency'])
+    file_name = f'scores_frequency_{args.experiment}.csv'
+    df.to_csv(join(args.out_path, file_name), index=False)
+
+    df = pd.DataFrame(scores['rho'], columns=['Stage', 'State', 'Estimator', 'Score'])
+    file_name = f'scores_rho_{args.experiment}.csv'
+    df.to_csv(join(args.out_path, file_name), index=False)
+
+    df = pd.DataFrame(scores['switches'], columns=['State', 'Estimator', 'Score'])
+    file_name = f'scores_switches_{args.experiment}.csv'
+    df.to_csv(join(args.out_path, file_name), index=False)
