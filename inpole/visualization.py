@@ -17,9 +17,13 @@ from sklearn.tree._export import _MPLTreeExporter
 from sklearn.tree._reingold_tilford import Tree
 from pandas.api.types import is_categorical_dtype, is_bool_dtype
 
-from inpole.pipeline import _get_estimator_params
+from inpole.pipeline import _get_estimator_params, load_best_pipeline
 from inpole.utils import merge_dicts
 from inpole.models.models import get_model_complexity
+from inpole.data import get_data_handler_from_config
+
+
+# @TODO: Rename this module to `postprocessing.py`.
 
 
 def visualize_encodings(encodings, prototype_indices, frac=0.1, figsize=(6,4),
@@ -592,3 +596,95 @@ def display_dataframe(
     
     with pd.option_context(*display_everything):
         return df.style.pipe(set_style)
+
+
+def get_all_scores(all_experiment_paths):
+    all_scores = []
+    
+    for experiment, experiment_paths in all_experiment_paths.items():
+        if experiment_paths is None:
+            continue
+        for state, experiment_path in experiment_paths.items():
+            if experiment_path is None:
+                continue
+            scores_path = os.path.join(experiment_path, 'scores.csv')
+            if not os.path.exists(scores_path):
+                continue
+            scores = pd.read_csv(scores_path)
+    
+            # Load a pipeline to compute the dimensionality of the input.
+            estimator = 'rnn' if state == '$H_t$' else 'lr'
+            pipeline, results_path = load_best_pipeline(
+                experiment_path, 1, estimator, return_results_path=True)
+    
+            # Load data handler.
+            config_path = os.path.join(results_path, 'config.yaml')
+            config = load_config(config_path)
+            data_handler = get_data_handler_from_config(config)
+            
+            scores['data'] = experiment
+            scores['state'] = state
+            state_dim = pipeline.n_features_in_
+            if data_handler.GROUP in pipeline.feature_names_in_:
+                state_dim -= 1
+            scores['state_dim'] = state_dim
+            all_scores.append(scores)
+    
+    all_scores = pd.concat(all_scores)
+    all_scores.rename(columns={'estimator_name': 'estimator'}, inplace=True)
+    
+    return all_scores
+
+
+def get_scoring_table(
+    all_scores,
+    metric='auc',
+    include_cis=False,
+    exclude_models=[],
+    experiment_order=None,
+    model_order=None,
+    index=None,
+):
+    by = ['data', 'state', 'state_dim', 'estimator']
+    g = all_scores[all_scores.subset == 'test'].groupby(by)
+    
+    agg = EstimateAggregator(np.mean, 'ci', n_boot=1000, seed=0)
+    
+    table = g.apply(agg, var=metric)
+    table = table * 100  # Convert to percentage
+
+    if include_cis:
+        a = r'\begin{tabular}[c]{@{}l@{}}'
+        b = r'\end{tabular}'
+        f = lambda r: a + f"{r[metric]:.1f}\\({r[f'{metric}min']:.1f}, {r[f'{metric}max']:.1f})" + b
+    else:
+        f = lambda r: f'{r[metric]:.1f}'
+    table[metric] = table[[metric, f'{metric}min', f'{metric}max']].apply(f, axis=1)
+    table = table.drop(columns=[f'{metric}min', f'{metric}max'])
+    
+    table = table.unstack(-1)
+    table.columns = table.columns.droplevel()  # Drop metric level
+    
+    sequence_models = ['prosenet', 'rdt', 'rdt_aligned', 'rdt_pruned', 'rnn']
+    for c in sequence_models:
+        c_truncated = f'truncated_{c}'
+        if c_truncated in table:
+            table[c].fillna(table[c_truncated], inplace=True)
+            table.drop(columns=c_truncated, inplace=True)
+    
+    exclude_models = [m for m in exclude_models if m in table.columns]
+    table = table.drop(columns=exclude_models)
+        
+    table = table.fillna('-')
+
+    if experiment_order is not None:
+        table = table.reindex(experiment_order, level=0)
+
+    if model_order is not None:
+        table = table[[m for m in model_order if m in table.columns]]
+        table = table.rename(columns=model_order)
+    
+    if index is not None:
+        table = table.reindex(index, level=1)
+
+    return table
