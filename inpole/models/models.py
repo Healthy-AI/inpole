@@ -1073,10 +1073,7 @@ class SwitchPropensityEstimator(ClassifierMixin, BaseEstimator):
     @property
     def estimators(self):
         """Return the (unfitted) estimators."""
-        return [
-            self.estimator_s,
-            self.estimator_t
-        ]
+        return [self.estimator_s, self.estimator_t]
     
     def _split_data(self, X, y, prev_therapy_index):
         y_prev = np.argmax(X[:, prev_therapy_index], axis=1)
@@ -1087,9 +1084,9 @@ class SwitchPropensityEstimator(ClassifierMixin, BaseEstimator):
     def fit(self, X, y, prev_therapy_index, X_valid=None, y_valid=None):
         """Fit model.
         
-        We assume that the labels are encoded into values between
-        0 and n_classes-1. We also assume that `prev_therapy_index` 
-        contains n_classes elements.
+        We assume that the labels `y` are encoded into values between 0 and 
+        n_classes-1. We also assume that `prev_therapy_index` contains 
+        n_classes elements.
         """
 
         self._check_fit_args(X, y, prev_therapy_index)
@@ -1119,7 +1116,6 @@ class SwitchPropensityEstimator(ClassifierMixin, BaseEstimator):
         # Check assumptions.
         n_classes = len(prev_therapy_index)
         assert np.array_equal(np.unique(y), np.arange(n_classes))
-        assert len(np.unique(y)) == n_classes
 
         # Check inputs `X`.
         assert isinstance(X, np.ndarray)
@@ -1150,7 +1146,7 @@ class SwitchPropensityEstimator(ClassifierMixin, BaseEstimator):
         y_tp = (1-y_prev) * y_tp
         mask = y_tp.sum(axis=1) == 0
         y_tp[mask] = 1 - y_prev[mask]  # Assign equal probability to all treatments except the previous one
-        y_tp = y_tp / y_tp.sum(axis=1, keepdims=True)        
+        y_tp = y_tp / y_tp.sum(axis=1, keepdims=True)
         
         # Mix in probability of staying.
         y_p = (1-y_sp)*y_prev + y_sp*y_tp

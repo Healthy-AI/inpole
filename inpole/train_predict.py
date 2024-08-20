@@ -48,6 +48,10 @@ def _get_previous_therapy_index(feature_names, prev_therapy_prefix):
     prev_therapy_index = np.array(
         [np.flatnonzero(feature_names == c).item() for c in prev_therapy_columns]
     )
+    if len(prev_therapy_index) == 0:
+        raise ValueError(
+            f"No previous therapies found with prefix '{prev_therapy_prefix}'."
+        )
     return prev_therapy_index
 
 
@@ -62,11 +66,6 @@ def _separate_switches(preprocessor, treatment, X, y):
     feature_names = get_feature_names(preprocessor)
     prefix = f'prev_{treatment}_'
     prev_therapy_index = _get_previous_therapy_index(feature_names, prefix)
-
-    if len(prev_therapy_index) == 0:
-        raise ValueError(
-            f"No previous therapy columns found with prefix '{prefix}'."
-        )
 
     Xt = preprocessor.transform(X)
     y_prev = np.argmax(Xt[:, prev_therapy_index], axis=1)

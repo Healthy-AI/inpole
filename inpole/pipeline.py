@@ -152,15 +152,15 @@ class Pipeline(pipeline.Pipeline):
 def create_pipeline(config, estimator_name):
     data_handler = get_data_handler_from_config(config)
 
-    # @TODO: Should this seed depend on the estimator?
-    seed = config['hparams']['seed']
-    cont_feat_trans = continuous_feature_transformation[estimator_name]
-    preprocessor = data_handler.get_preprocessor(cont_feat_trans, seed)
-
     is_switch_estimator = False
     if estimator_name.startswith('switch'):
         estimator_name = estimator_name.split('_')[1]
         is_switch_estimator = True
+
+    # Should this seed depend on the estimator?
+    seed = config['hparams']['seed']
+    cont_feat_trans = continuous_feature_transformation[estimator_name]
+    preprocessor = data_handler.get_preprocessor(cont_feat_trans, seed)
 
     if estimator_name in ALL_NET_ESTIMATORS:
         # Infer input/output dimensions from training data.
