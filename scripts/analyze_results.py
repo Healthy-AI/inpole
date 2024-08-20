@@ -32,22 +32,22 @@ sepsis_bins = [-0.4, -0.15, 0, 0.15, 0.4]
 
 
 ra_paths = {
-    r'$X_t$':                    '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2221_sweep',
-    r'$A_{t-1}$':                '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2222_sweep',
-    r'$H_{(t-0):t}$':            '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2223_sweep',
-    r'$\bar{H}_t$':              '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2224_sweep',  # max
-    r'$H_{(t-0):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2225_sweep',  # max
-    r'$H_{(t-1):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2226_sweep',  # max
-    r'$H_{(t-2):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2227_sweep',  # max
-    #r'$\bar{H}_t$':              '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2228_sweep',  # sum
-    #r'$H_{(t-0):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2229_sweep',  # sum
-    #r'$H_{(t-1):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2230_sweep',  # sum
-    #r'$H_{(t-2):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2231_sweep',  # sum
-    #r'$\bar{H}_t$':              '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2232_sweep',  # mean
-    #r'$H_{(t-0):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2233_sweep',  # mean
-    #r'$H_{(t-1):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2234_sweep',  # mean
-    #r'$H_{(t-2):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2235_sweep',  # mean
-    r'$H_t$':                    '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2236_sweep',
+    r'$X_t$':                    '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1335_sweep',
+    r'$A_{t-1}$':                '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1336_sweep',
+    r'$H_{(t-0):t}$':            '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1337_sweep',
+    r'$\bar{H}_t$':              '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1338_sweep',  # max
+    r'$H_{(t-0):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1339_sweep',  # max
+    r'$H_{(t-1):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1340_sweep',  # max
+    r'$H_{(t-2):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1341_sweep',  # max
+    #r'$\bar{H}_t$':              '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1342_sweep',  # sum
+    #r'$H_{(t-0):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1343_sweep',  # sum
+    #r'$H_{(t-1):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1344_sweep',  # sum
+    #r'$H_{(t-2):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1345_sweep',  # sum
+    #r'$\bar{H}_t$':              '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1346_sweep',  # mean
+    #r'$H_{(t-0):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1347_sweep',  # mean
+    #r'$H_{(t-1):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1348_sweep',  # mean
+    #r'$H_{(t-2):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1349_sweep',  # mean
+    r'$H_t$':                    '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1350_sweep',
 }
 
 ra_bins = [-9.0, -2.8, -1.0, 0.0, 2.6]
@@ -148,7 +148,7 @@ if __name__ == '__main__':
                 # Misclassification.
                 #yp = pipeline.predict(X)
                 yp = estimator.predict(Xt)
-                stage = X.groupby('id').cumcount() + 1
+                stage = X.groupby(data_handler.GROUP).cumcount() + 1
                 incorrect = stage[y != yp].value_counts().sort_index()
                 frequency = incorrect / stage.value_counts().sort_index()
                 scores['frequency'] += [(state, estimator_name, frequency)]
