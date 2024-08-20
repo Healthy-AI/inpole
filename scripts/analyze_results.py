@@ -112,7 +112,7 @@ if __name__ == '__main__':
                 except FileNotFoundError:
                     continue
 
-                _print_log(f"State: {state} | Estimator: {estimator} | Trial: {trial} | Time")
+                _print_log(f"State: {state} | Estimator: {estimator} | Trial: {trial}")
                 
                 config_path = join(results_path, 'config.yaml')
                 config = load_config(config_path)
