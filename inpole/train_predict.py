@@ -1,3 +1,4 @@
+import copy
 from os.path import join
 
 import pandas as pd
@@ -19,6 +20,7 @@ from .models import (
     DecisionTreeClassifier,
     CalibratedClassifierCV
 )
+from .data import RAData
 from .data.data import get_data_handler_from_config
 from .data.utils import drop_shifted_columns
 from .pipeline import create_pipeline
@@ -185,7 +187,16 @@ def predict(
     if switches_only:
         assert not isinstance(pipeline, CalibratedClassifierCV)
         preprocessor = pipeline.named_steps['preprocessor']
-        switch = _separate_switches(preprocessor, data_handler.TREATMENT, X, y)
+        try:
+            switch = _separate_switches(preprocessor, data_handler.TREATMENT, X, y)
+        except ValueError:
+            # Workaround when the previous therapy cannot be found in `X`.
+            kwargs = copy.deepcopy(config['data'])
+            kwargs['include_previous_treatment'] = True
+            kwargs['aggregate_history'] = False
+            X2, y2, _groups = RAData(**kwargs).load()
+            switch = (y2 != X2.prev_therapy)
+            switch = switch[X.index]
         X, y = X[switch], y[switch]
         data[-1] += '_s'
     
