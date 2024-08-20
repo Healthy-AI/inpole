@@ -141,11 +141,13 @@ if __name__ == '__main__':
                     scores['switches'] += [(state, estimator, score)]
 
     df = pd.DataFrame(scores['time'], columns=['Stage', 'State', 'Estimator', 'Score'])
-    df.to_csv(join(args.out_path, 'scores_time.csv'), index=False)
+    file_name = f'scores_time_{args.experiment}.csv'
+    df.to_csv(join(args.out_path, file_name), index=False)
 
     df = pd.DataFrame(scores['groups'], columns=['Group', 'State', 'Estimator', 'Score'])
-    df.to_csv(join(args.out_path, 'scores_groups.csv'), index=False)
+    file_name = f'scores_groups_{args.experiment}.csv'
+    df.to_csv(join(args.out_path, file_name), index=False)
 
     if args.experiment == 'ra':
         df = pd.DataFrame(scores['switches'], columns=['State', 'Estimator', 'Score'])
-        df.to_csv(join(args.out_path, 'scores_switches.csv'), index=False)
+        df.to_csv(join(args.out_path, 'scores_switches_ra.csv'), index=False)
