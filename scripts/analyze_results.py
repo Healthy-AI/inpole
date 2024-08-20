@@ -92,6 +92,7 @@ if __name__ == '__main__':
         patient_groups = get_patient_groups(data, 'icustayid', 'NEWS2', sepsis_bins)
     elif args.experiment == 'ra':
         all_paths = ra_paths
+        data = data[data.stage.ge(1)]
         patient_groups = get_patient_groups(data, 'id', 'cdai', ra_bins)
         config = load_config(join(ra_paths['$A_{t-1}$'], 'default_config.yaml'))
         X, y, _groups = RAData(**config['data']).load()
