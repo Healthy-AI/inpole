@@ -10,9 +10,10 @@ from amhelpers.config_parsing import load_config
 from inpole.data import get_data_handler_from_config
 from inpole.pipeline import load_best_pipeline
 from inpole.utils import _print_log
+from inpole.data import RAData
 
 
-all_estimators = ['riskslim', 'lr', 'dt', 'pronet', 'mlp', 'rdt', 'prosenet', 'rnn']
+all_estimators = ['riskslim', 'lr', 'dt', 'rulefit', 'pronet', 'mlp', 'rdt', 'prosenet', 'rnn']
 
 
 sepsis_paths = {
@@ -31,6 +32,28 @@ sepsis_paths = {
 sepsis_bins = [-0.4, -0.15, 0, 0.15, 0.4]
 
 
+ra_paths = {
+    r'$X_t$':                    '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2221_sweep',
+    r'$A_{t-1}$':                '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2222_sweep',
+    r'$H_{(t-0):t}$':            '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2223_sweep',
+    r'$\bar{H}_t$':              '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2224_sweep',  # max
+    r'$H_{(t-0):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2225_sweep',  # max
+    r'$H_{(t-1):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2226_sweep',  # max
+    r'$H_{(t-2):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2227_sweep',  # max
+    #r'$\bar{H}_t$':              '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2228_sweep',  # sum
+    #r'$H_{(t-0):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2229_sweep',  # sum
+    #r'$H_{(t-1):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2230_sweep',  # sum
+    #r'$H_{(t-2):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2231_sweep',  # sum
+    #r'$\bar{H}_t$':              '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2232_sweep',  # mean
+    #r'$H_{(t-0):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2233_sweep',  # mean
+    #r'$H_{(t-1):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2234_sweep',  # mean
+    #r'$H_{(t-2):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2235_sweep',  # mean
+    r'$H_t$':                    '/mimer/NOBACKUP/groups/inpole/results/ra/20240819_2236_sweep',
+}
+
+ra_bins = [-8.0, -2.4, -0.6, 0.4, 4.4]
+
+
 def get_patient_groups(data, group, variable, bin_values):
     def segment_data(series, bin_values):
         segments = []
@@ -43,7 +66,6 @@ def get_patient_groups(data, group, variable, bin_values):
     
     rates = data.set_index(group).groupby(group)[variable].diff()
     means = rates.groupby(group).mean()
-    #stds = rates.groupby(id).std()
 
     segments = segment_data(means, bin_values)
     
@@ -68,10 +90,16 @@ if __name__ == '__main__':
     if args.experiment == 'sepsis':
         all_paths = sepsis_paths
         patient_groups = get_patient_groups(data, 'icustayid', 'NEWS2', sepsis_bins)
+    elif args.experiment == 'ra':
+        all_paths = ra_paths
+        patient_groups = get_patient_groups(data, 'id', 'cdai', ra_bins)
+        config = load_config(join(ra_paths['$A_{t-1}$'], 'default_config.yaml'))
+        X, y, _groups = RAData(**config['data']).load()
+        switch = (y != X.prev_therapy)
     else:
         raise ValueError(f"Unknown experiment '{args.experiment}'.")
     
-    out = collections.defaultdict(list)
+    scores = collections.defaultdict(list)
     
     for state, experiment_path in all_paths.items():
         trial_dirs = os.listdir(join(experiment_path, 'sweep'))
@@ -89,13 +117,12 @@ if __name__ == '__main__':
                 config = load_config(config_path)
                 data_handler = get_data_handler_from_config(config)
                 X, y = data_handler.get_splits()[-1]  # Test data
-                X.reset_index(inplace=True)
                 
                 # Stratification w.r.t. time.
                 stages = X.groupby(data_handler.GROUP).cumcount()
                 for t in range(stages.max()):
                     score = pipeline.score(X[stages==t], y[stages==t], metric='auc')
-                    out['time'] += [(t + 1, state, estimator, score)]
+                    scores['time'] += [(t + 1, state, estimator, score)]
 
                 # Stratification w.r.t. patient groups.
                 Xg = X.groupby(data_handler.GROUP)
@@ -105,10 +132,20 @@ if __name__ == '__main__':
                 ]
                 for group, indices in enumerate(group_indices, start=1):
                     score = pipeline.score(X.iloc[indices], y[indices], metric='auc')
-                    out['groups'] += [(group, state, estimator, score)]
+                    scores['groups'] += [(group, state, estimator, score)]
 
-    out['time'] = pd.DataFrame(out['time'], columns=['Stage', 'State', 'Estimator', 'Score'])
-    out.to_csv(join(args.out_path, 'scores_time.csv'), index=False)
+                if args.experiment == 'ra':
+                    # Evalute model on switches only.
+                    s = switch[X.index]
+                    score = pipeline.score(X[s], y[s], metric='auc')
+                    scores['switches'] += [(state, estimator, score)]
 
-    out['groups'] = pd.DataFrame(out['groups'], columns=['Group', 'State', 'Estimator', 'Score'])
-    out.to_csv(join(args.out_path, 'scores_groups.csv'), index=False)
+    df = pd.DataFrame(scores['time'], columns=['Stage', 'State', 'Estimator', 'Score'])
+    df.to_csv(join(args.out_path, 'scores_time.csv'), index=False)
+
+    df = pd.DataFrame(scores['groups'], columns=['Group', 'State', 'Estimator', 'Score'])
+    df.to_csv(join(args.out_path, 'scores_groups.csv'), index=False)
+
+    if args.experiment == 'ra':
+        df = pd.DataFrame(scores['switches'], columns=['State', 'Estimator', 'Score'])
+        df.to_csv(join(args.out_path, 'scores_switches.csv'), index=False)
