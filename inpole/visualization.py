@@ -10,6 +10,7 @@ import numpy as np
 import colorcet as cc
 import seaborn as sns
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 from seaborn._statistics import EstimateAggregator
 from sklearn.decomposition import PCA
 from amhelpers.config_parsing import load_config
@@ -288,7 +289,7 @@ def inspect_hyperparameters(sweep_path, estimator_name, metric='auc',
                 warnings.warn(f"Failed to plot parameter value {value}.")
 
 
-def get_model_complexities_and_scores(trial_path, estimator_name, metric='auc'):
+def get_model_complexities_and_scores(trial_path, estimator_name, subset='test', metric='auc'):
     complexities, scores = [], []
 
     for experiment_dir in os.listdir(trial_path):
@@ -308,7 +309,7 @@ def get_model_complexities_and_scores(trial_path, estimator_name, metric='auc'):
             scores_path = join(trial_path, experiment_dir, 'scores.csv')
             if os.path.exists(scores_path):
                 s = pd.read_csv(scores_path)
-                mask = s.subset == 'test'
+                mask = s.subset == subset
                 if name in ['rdt', 'truncated_rdt']:
                     mask &= s.estimator_name == f'{name}_aligned'
                 score = s[mask][metric].item()
@@ -317,6 +318,48 @@ def get_model_complexities_and_scores(trial_path, estimator_name, metric='auc'):
             scores.append(score)
 
     return np.array(complexities), np.array(scores)
+
+
+def plot_model_complexity(estimators, trial_paths, estimator_mapper, subset='test', metric='auc'):
+    for estimator, (bins, xlabel, xlog, ylim, ax) in estimators.items():
+        trial_path = trial_paths[estimator]
+        complexities, scores = get_model_complexities_and_scores(trial_path, estimator, subset, metric)
+        
+        assert len(complexities) == len(scores)
+        
+        if len(complexities) > 0:
+            label = estimator_mapper[estimator]
+            if bins is not None:
+                indices = np.digitize(complexities, bins)
+                x, y = [], []
+                xticks, xticklabels = [], []
+                for i in range(1, len(bins)):
+                    le, re = bins[i-1], bins[i]
+                    m = le + (re - le) / 2
+                    xticks.append(m)
+                    xticklabels.append(f'{le}–{re}')
+                    if i in indices:
+                        s = max(scores[indices==i])
+                        x.append(m)
+                        y.append(s)
+                ax.plot(x, y, 'ko-', label=label)
+                ax.set_xticks(xticks)
+                ax.set_xticklabels(xticklabels, rotation=90)
+            else:
+                unique = np.unique(complexities)
+                unique = unique[~np.isnan(unique)]
+                max_scores = [max(scores[complexities==x]) for x in unique]
+                ax.plot(unique, max_scores, 'ko-', label=label)
+                ax.set_xticks(unique)
+            
+            ax.set_xlabel(xlabel)
+            if xlog:
+                ax.set_xscale('log')
+            if ylim is not None:
+                ax.set_ylim(ylim)
+            ax.yaxis.set_major_formatter(ticker.FormatStrFormatter('%0.2f'))
+            ax.legend()
+            ax.grid('on')
 
 
 class TreeExporter(_MPLTreeExporter):
