@@ -78,6 +78,8 @@ if __name__ == '__main__':
     parser.add_argument('--out_path', type=str, required=True)
     args = parser.parse_args()
 
+    _print_log(f"Experiment: {args.experiment}")
+
     if args.data_path.endswith('.csv'):
         data = pd.read_csv(args.data_path)
     elif args.data_path.endswith('.pkl'):
@@ -151,7 +153,7 @@ if __name__ == '__main__':
                 stage = X.groupby(data_handler.GROUP).cumcount() + 1
                 incorrect = stage[y != yp].value_counts().sort_index()
                 frequency = incorrect / stage.value_counts().sort_index()
-                scores['frequency'] += [(state, estimator_name, frequency)]
+                scores['frequency'] += [(state, estimator_name, frequency.tolist())]
                 
                 # Compute probability products.
                 #probas = pipeline.predict_proba(X)
@@ -162,18 +164,18 @@ if __name__ == '__main__':
                 for t in range(1, stages.max() + 1):
                     probas_yt = probas_y_grouped.filter(lambda x: len(x) >= t)
                     rho = probas_yt.groupby(X[data_handler.GROUP]).prod()
-                    scores['rho'] += [(t, state, estimator_name, rho)]
+                    scores['rho'] += [(t, state, estimator_name, rho.tolist())]
                 rho = probas_y_grouped.prod()
-                scores['rho'] += [(-1, state, estimator_name, rho)]
+                scores['rho'] += [(-1, state, estimator_name, rho.tolist())]
 
                 # Evaluate model on treatment switches and non_treatment switches.
                 s = switch[X.index]
                 #score1 = pipeline.score(X[s], y[s], metric='auc')
                 score1 = estimator.score(Xt[s], y[s], metric='auc')
-                scores['switches'] += [(state, estimator_name, score1)]
+                scores['switch'] += [('yes', state, estimator_name, score1)]
                 #score2 = pipeline.score(X[~s], y[~s], metric='auc')
                 score2 = estimator.score(Xt[~s], y[~s], metric='auc')
-                scores['non-switches'] += [(state, estimator_name, score2)]
+                scores['switch'] += [('no', state, estimator_name, score2)]
 
     df = pd.DataFrame(scores['time'], columns=['Stage', 'State', 'Estimator', 'Score'])
     file_name = f'scores_time_{args.experiment}.csv'
@@ -191,6 +193,6 @@ if __name__ == '__main__':
     file_name = f'scores_rho_{args.experiment}.csv'
     df.to_csv(join(args.out_path, file_name), index=False)
 
-    df = pd.DataFrame(scores['switches'], columns=['State', 'Estimator', 'Score'])
-    file_name = f'scores_switches_{args.experiment}.csv'
+    df = pd.DataFrame(scores['switch'], columns=['Switch', 'State', 'Estimator', 'Score'])
+    file_name = f'scores_switch_{args.experiment}.csv'
     df.to_csv(join(args.out_path, file_name), index=False)
