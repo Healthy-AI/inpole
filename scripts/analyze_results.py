@@ -117,7 +117,7 @@ if __name__ == '__main__':
     out['stage'] += [('State', 'Trial', 'Estimator', 'Stage', 'Metric', 'Score')]
     out['switch'] += [('State', 'Trial', 'Estimator', 'Switch', 'Metric', 'Score')]
     out['switch_stage'] += [('State', 'Trial', 'Estimator', 'Switch', 'Stage', 'Metric', 'Score')]
-    out['rho'] += [('State', 'Trial', 'Estimator', 'Stage', 'Score')]
+    out['rho'] += [('State', 'Trial', 'Estimator', 'Stage', 'Rho')]
     
     for state, experiment_path in all_paths.items():
         trial_dirs = os.listdir(join(experiment_path, 'sweep'))
@@ -146,7 +146,7 @@ if __name__ == '__main__':
 
                 # Collect probabilities.
                 probas = estimator.predict_proba(Xt)
-                out['probas'] += [(state, trial, estimator_name, probas.to_numpy())]
+                out['probas'] += [(state, trial, estimator_name, probas)]
 
                 # Performance w.r.t. patient groups.
                 group_indices = [
