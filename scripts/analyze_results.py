@@ -176,11 +176,12 @@ if __name__ == '__main__':
                 # Performance w.r.t. time and switches.
                 for t in range(1, stages.max() + 1):
                     s = switch[X.index] & stages.eq(t)
-                    for metric in metrics:
-                        score1 = estimator.score(Xt[s], y[s], metric=metric)
-                        out['switch_stage'] += [(state, trial, estimator_name, 'yes', t, metric, score1)]
-                        score2 = estimator.score(Xt[~s], y[~s], metric=metric)
-                        out['switch_stage'] += [(state, trial, estimator_name, 'no', t, metric, score2)]
+                    if s.any():
+                        for metric in metrics:
+                            score1 = estimator.score(Xt[s], y[s], metric=metric)
+                            out['switch_stage'] += [(state, trial, estimator_name, 'yes', t, metric, score1)]
+                            score2 = estimator.score(Xt[~s], y[~s], metric=metric)
+                            out['switch_stage'] += [(state, trial, estimator_name, 'no', t, metric, score2)]
             
                 # Probability products.
                 probas = estimator.predict_proba(Xt)
@@ -196,5 +197,5 @@ if __name__ == '__main__':
     
     _print_log("Saving data...")
     file_name = f'results_{args.experiment}.pickle'
-    with open(file_name, 'wb') as handle:
+    with open(join(args.out_path, file_name), 'wb') as handle:
         pickle.dump(out, handle, protocol=pickle.HIGHEST_PROTOCOL)
