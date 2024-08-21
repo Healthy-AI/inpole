@@ -123,6 +123,7 @@ class ClassifierMixin:
     accepted_metrics = {
         'auc': {'lower_is_better': False},
         'accuracy': {'lower_is_better': False},
+        'balanced_accuracy': {'lower_is_better': False},
         'ece': {'lower_is_better': True},
         'sce': {'lower_is_better': True},
         'brier': {'lower_is_better': True}
@@ -155,6 +156,10 @@ class ClassifierMixin:
         if metric == 'accuracy':
             yp = self.predict(X)
             return metrics.accuracy_score(y, yp, **kwargs)
+        
+        if metric == 'balanced_accuracy':
+            yp = self.predict(X)
+            return metrics.balanced_accuracy_score(y, yp, **kwargs)
 
         if metric == 'brier':
             if len(self.classes_) > 2:
