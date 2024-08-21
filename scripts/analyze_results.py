@@ -111,12 +111,13 @@ if __name__ == '__main__':
     else:
         raise ValueError(f"Unknown experiment '{args.experiment}'.")
     
-    scores = collections.defaultdict(list)
-    scores['frequency'] += [('State', 'Estimator', 'Frequency')]
-    scores['time'] += [('Stage', 'State', 'Estimator', 'Metric', 'Score')]
-    scores['groups'] += [('Group', 'State', 'Estimator', 'Metric', 'Score')]
-    scores['switch'] += [('Switch', 'State', 'Estimator', 'Metric', 'Score')]
-    scores['rho'] += [('Stage', 'State', 'Estimator', 'Score')]
+    out = collections.defaultdict(list)
+    out['probas'] = [('State', 'Trial', 'Estimator', 'Probas')]
+    out['groups'] += [('State', 'Trial', 'Estimator', 'Group', 'Metric', 'Score')]
+    out['stage'] += [('State', 'Trial', 'Estimator', 'Stage', 'Metric', 'Score')]
+    out['switch'] += [('State', 'Trial', 'Estimator', 'Switch', 'Metric', 'Score')]
+    out['switch_stage'] += [('State', 'Trial', 'Estimator', 'Switch', 'Stage', 'Metric', 'Score')]
+    out['rho'] += [('State', 'Trial', 'Estimator', 'Stage', 'Score')]
     
     for state, experiment_path in all_paths.items():
         trial_dirs = os.listdir(join(experiment_path, 'sweep'))
@@ -134,6 +135,7 @@ if __name__ == '__main__':
                 config = load_config(config_path)
                 data_handler = get_data_handler_from_config(config)
                 X, y = data_handler.get_splits()[-1]  # Test data
+                Xg = X.groupby(data_handler.GROUP)
 
                 # Preprocess the input only once to save time.
                 #
@@ -141,22 +143,12 @@ if __name__ == '__main__':
                 # estimators because the preprocessor depends on the estimator.
                 preprocessor, estimator = pipeline.named_steps.values()
                 Xt = preprocessor.transform(X)
-                
-                # Misclassification over time.
-                yp = estimator.predict(Xt)
-                stages = X.groupby(data_handler.GROUP).cumcount() + 1
-                incorrect_per_stage = stages[y != yp].value_counts().sort_index()
-                frequency_per_stage = incorrect_per_stage / stages.value_counts().sort_index()
-                scores['frequency'] += [(state, estimator_name, frequency_per_stage.tolist())]
 
-                # Stratification w.r.t. time.
-                for t in range(1, stages.max() + 1):
-                    for metric in metrics:
-                        score = estimator.score(Xt[stages==t], y[stages==t], metric=metric)
-                        scores['time'] += [(t, state, estimator_name, metric, score)]
+                # Collect probabilities.
+                probas = estimator.predict_proba(Xt)
+                out['probas'] += [(state, trial, estimator_name, probas.to_numpy())]
 
-                # Stratification w.r.t. patient groups.
-                Xg = X.groupby(data_handler.GROUP)
+                # Performance w.r.t. patient groups.
                 group_indices = [
                     np.concatenate([Xg.indices.get(id) for id in ids if id in Xg.groups])
                     for ids in patient_groups
@@ -164,15 +156,31 @@ if __name__ == '__main__':
                 for group, indices in enumerate(group_indices, start=1):
                     for metric in metrics:
                         score = estimator.score(Xt[indices], y[indices], metric=metric)
-                        scores['groups'] += [(group, state, estimator_name, metric, score)]
+                        out['groups'] += [(state, trial, estimator_name, group, metric, score)]
+                
+                # Performance w.r.t. time.
+                stages = Xg.cumcount() + 1
+                for t in range(1, stages.max() + 1):
+                    for metric in metrics:
+                        score = estimator.score(Xt[stages==t], y[stages==t], metric=metric)
+                        out['stage'] += [(state, trial, estimator_name, t, metric, score)]
 
-                # Switch vs. stay.
+                # Performance w.r.t. switches.
                 s = switch[X.index]
                 for metric in metrics:
                     score1 = estimator.score(Xt[s], y[s], metric=metric)
-                    scores['switch'] += [('yes', state, estimator_name, metric, score1)]
+                    out['switch'] += [(state, trial, estimator_name, 'yes', metric, score1)]
                     score2 = estimator.score(Xt[~s], y[~s], metric=metric)
-                    scores['switch'] += [('no', state, estimator_name, metric, score2)]
+                    out['switch'] += [(state, trial, estimator_name, 'no', metric, score2)]
+                
+                # Performance w.r.t. time and switches.
+                for t in range(1, stages.max() + 1):
+                    s = switch[X.index] & stages.eq(t)
+                    for metric in metrics:
+                        score1 = estimator.score(Xt[s], y[s], metric=metric)
+                        out['switch_stage'] += [(state, trial, estimator_name, 'yes', t, metric, score1)]
+                        score2 = estimator.score(Xt[~s], y[~s], metric=metric)
+                        out['switch_stage'] += [(state, trial, estimator_name, 'no', t, metric, score2)]
             
                 # Probability products.
                 probas = estimator.predict_proba(Xt)
@@ -182,10 +190,11 @@ if __name__ == '__main__':
                 for t in range(1, stages.max() + 1):
                     probas_yt = probas_y_grouped.filter(lambda x: len(x) >= t)
                     rho = probas_yt.groupby(X[data_handler.GROUP]).prod()
-                    scores['rho'] += [(t, state, estimator_name, rho.tolist())]
+                    out['rho'] += [(state, trial, estimator_name, t, rho.tolist())]
                 rho = probas_y_grouped.prod()
-                scores['rho'] += [(-1, state, estimator_name, rho.tolist())]
+                out['rho'] += [(state, trial, estimator_name, -1, rho.tolist())]
     
-    file_name = f'scores_{args.experiment}.pickle'
+    _print_log("Saving data...")
+    file_name = f'results_{args.experiment}.pickle'
     with open(file_name, 'wb') as handle:
-        pickle.dump(scores, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(out, handle, protocol=pickle.HIGHEST_PROTOCOL)
