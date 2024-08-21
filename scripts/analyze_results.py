@@ -2,6 +2,7 @@ import os
 from os.path import join
 import argparse
 import collections
+import pickle
 
 import pandas as pd
 import numpy as np
@@ -13,6 +14,9 @@ from inpole.utils import _print_log
 from inpole.data import RAData, SepsisData
 from inpole import ESTIMATORS
 from inpole.data.data import discretize_doses
+
+
+metrics = ['accuracy', 'auc']
 
 
 sepsis_paths = {
@@ -108,6 +112,11 @@ if __name__ == '__main__':
         raise ValueError(f"Unknown experiment '{args.experiment}'.")
     
     scores = collections.defaultdict(list)
+    scores['frequency'] += [('State', 'Estimator', 'Frequency')]
+    scores['time'] += [('Stage', 'State', 'Estimator', 'Metric', 'Score')]
+    scores['groups'] += [('Group', 'State', 'Estimator', 'Metric', 'Score')]
+    scores['switch'] += [('Switch', 'State', 'Estimator', 'Metric', 'Score')]
+    scores['rho'] += [('Stage', 'State', 'Estimator', 'Score')]
     
     for state, experiment_path in all_paths.items():
         trial_dirs = os.listdir(join(experiment_path, 'sweep'))
@@ -126,15 +135,25 @@ if __name__ == '__main__':
                 data_handler = get_data_handler_from_config(config)
                 X, y = data_handler.get_splits()[-1]  # Test data
 
+                # Preprocess the input only once to save time.
+                #
+                # Note that we cannot reuse the preprocessed input for different 
+                # estimators because the preprocessor depends on the estimator.
                 preprocessor, estimator = pipeline.named_steps.values()
                 Xt = preprocessor.transform(X)
                 
+                # Misclassification over time.
+                yp = estimator.predict(Xt)
+                stages = X.groupby(data_handler.GROUP).cumcount() + 1
+                incorrect_per_stage = stages[y != yp].value_counts().sort_index()
+                frequency_per_stage = incorrect_per_stage / stages.value_counts().sort_index()
+                scores['frequency'] += [(state, estimator_name, frequency_per_stage.tolist())]
+
                 # Stratification w.r.t. time.
-                stages = X.groupby(data_handler.GROUP).cumcount()
-                for t in range(stages.max()):
-                    #score = pipeline.score(X[stages==t], y[stages==t], metric='auc')
-                    score = estimator.score(Xt[stages==t], y[stages==t], metric='auc')
-                    scores['time'] += [(t + 1, state, estimator_name, score)]
+                for t in range(1, stages.max() + 1):
+                    for metric in metrics:
+                        score = estimator.score(Xt[stages==t], y[stages==t], metric=metric)
+                        scores['time'] += [(t, state, estimator_name, metric, score)]
 
                 # Stratification w.r.t. patient groups.
                 Xg = X.groupby(data_handler.GROUP)
@@ -143,20 +162,19 @@ if __name__ == '__main__':
                     for ids in patient_groups
                 ]
                 for group, indices in enumerate(group_indices, start=1):
-                    #score = pipeline.score(X.iloc[indices], y[indices], metric='auc')
-                    score = estimator.score(Xt[indices], y[indices], metric='auc')
-                    scores['groups'] += [(group, state, estimator_name, score)]
+                    for metric in metrics:
+                        score = estimator.score(Xt[indices], y[indices], metric=metric)
+                        scores['groups'] += [(group, state, estimator_name, metric, score)]
 
-                # Misclassification.
-                #yp = pipeline.predict(X)
-                yp = estimator.predict(Xt)
-                stage = X.groupby(data_handler.GROUP).cumcount() + 1
-                incorrect = stage[y != yp].value_counts().sort_index()
-                frequency = incorrect / stage.value_counts().sort_index()
-                scores['frequency'] += [(state, estimator_name, frequency.tolist())]
-                
-                # Compute probability products.
-                #probas = pipeline.predict_proba(X)
+                # Switch vs. stay.
+                s = switch[X.index]
+                for metric in metrics:
+                    score1 = estimator.score(Xt[s], y[s], metric=metric)
+                    scores['switch'] += [('yes', state, estimator_name, metric, score1)]
+                    score2 = estimator.score(Xt[~s], y[~s], metric=metric)
+                    scores['switch'] += [('no', state, estimator_name, metric, score2)]
+            
+                # Probability products.
                 probas = estimator.predict_proba(Xt)
                 probas_y = probas[np.arange(len(y)), y]
                 probas_y = pd.Series(probas_y, index=X.index)
@@ -167,32 +185,7 @@ if __name__ == '__main__':
                     scores['rho'] += [(t, state, estimator_name, rho.tolist())]
                 rho = probas_y_grouped.prod()
                 scores['rho'] += [(-1, state, estimator_name, rho.tolist())]
-
-                # Evaluate model on treatment switches and non_treatment switches.
-                s = switch[X.index]
-                #score1 = pipeline.score(X[s], y[s], metric='auc')
-                score1 = estimator.score(Xt[s], y[s], metric='auc')
-                scores['switch'] += [('yes', state, estimator_name, score1)]
-                #score2 = pipeline.score(X[~s], y[~s], metric='auc')
-                score2 = estimator.score(Xt[~s], y[~s], metric='auc')
-                scores['switch'] += [('no', state, estimator_name, score2)]
-
-    df = pd.DataFrame(scores['time'], columns=['Stage', 'State', 'Estimator', 'Score'])
-    file_name = f'scores_time_{args.experiment}.csv'
-    df.to_csv(join(args.out_path, file_name), index=False)
-
-    df = pd.DataFrame(scores['groups'], columns=['Group', 'State', 'Estimator', 'Score'])
-    file_name = f'scores_groups_{args.experiment}.csv'
-    df.to_csv(join(args.out_path, file_name), index=False)
-
-    df = pd.DataFrame(scores['frequency'], columns=['State', 'Estimator', 'Frequency'])
-    file_name = f'scores_frequency_{args.experiment}.csv'
-    df.to_csv(join(args.out_path, file_name), index=False)
-
-    df = pd.DataFrame(scores['rho'], columns=['Stage', 'State', 'Estimator', 'Score'])
-    file_name = f'scores_rho_{args.experiment}.csv'
-    df.to_csv(join(args.out_path, file_name), index=False)
-
-    df = pd.DataFrame(scores['switch'], columns=['Switch', 'State', 'Estimator', 'Score'])
-    file_name = f'scores_switch_{args.experiment}.csv'
-    df.to_csv(join(args.out_path, file_name), index=False)
+    
+    file_name = f'scores_{args.experiment}.pickle'
+    with open(file_name, 'wb') as handle:
+        pickle.dump(scores, handle, protocol=pickle.HIGHEST_PROTOCOL)
