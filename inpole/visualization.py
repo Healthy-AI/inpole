@@ -731,3 +731,98 @@ def get_scoring_table(
         table = table.reindex(index, level=1)
 
     return table
+
+
+def compare_ra_models(
+    probas,
+    data_path,
+    state_true='$H_t$',
+    estimator_true='rnn',
+    state_pred='$A_{t-1}$',
+    estimator_pred='lr',
+    num_trials=5,
+    switches_only=False,
+    compare_with_gt=False,
+    return_proba=False,
+):
+    from inpole.data import RAData
+    
+    y_true_all, y_pred_all = [], []
+    yp_true_all, yp_pred_all = [], []
+    X_all, y_all = [], []
+    
+    for trial in range(1, num_trials + 1):
+        data_handler = RAData(path=data_path, seed=trial)
+        _train_data, _valid_data, test_data = data_handler.get_splits()
+        X, y = test_data
+        X['stage'] = X.groupby(data_handler.GROUP).cumcount() + 1
+        
+        yp_true = probas[
+            probas.State.eq(state_true)
+            & probas.Estimator.eq(estimator_true) 
+            & probas.Trial.eq(trial)
+        ].Probas.item()
+    
+        yp_pred = probas[
+            probas.State.eq(state_pred) 
+            & probas.Estimator.eq(estimator_pred) 
+            & probas.Trial.eq(trial)
+        ].Probas.item()
+    
+        y_true = np.argmax(yp_true, axis=1)
+        y_pred = np.argmax(yp_pred, axis=1)
+
+        if compare_with_gt:
+            labels = data_handler.get_labels()
+            yp_true = np.eye(len(labels))[y]
+            y_true = y
+
+        if switches_only:
+            labels = data_handler.get_labels()
+            switch = (labels[y] != X.prev_therapy)
+            
+            yp_true = yp_true[switch]
+            yp_pred = yp_pred[switch]
+            
+            y_true = y_true[switch]
+            y_pred = y_pred[switch]
+            
+            X = X[switch]
+            y = y[switch]
+        
+        X['correct'] = y_true == y_pred
+
+        yp_true_all.append(yp_true)
+        yp_pred_all.append(yp_pred)
+        
+        y_true_all.append(y_true)
+        y_pred_all.append(y_pred)
+        
+        X_all.append(X)
+        y_all.append(y)
+
+    yp_true_all = np.concatenate(yp_true_all)
+    yp_pred_all = np.concatenate(yp_pred_all)
+    
+    y_true_all = np.concatenate(y_true_all)
+    y_pred_all = np.concatenate(y_pred_all)
+    
+    X_all = pd.concat(X_all)
+    y_all = np.concatenate(y_all)
+
+    _, unique_indices = np.unique(X_all.index, return_index=True)
+    unique_indices = np.sort(unique_indices)
+
+    yp_true_all = yp_true_all[unique_indices]
+    yp_pred_all = yp_pred_all[unique_indices]
+    
+    y_true_all = y_true_all[unique_indices]
+    y_pred_all = y_pred_all[unique_indices]
+
+    X_all = X_all.iloc[unique_indices]
+    y_all = y_all[unique_indices]
+
+    if return_proba:            
+        return y_true_all, y_pred_all, yp_true_all, yp_pred_all, X_all, y_all
+    else:
+        return y_true_all, y_pred_all, X_all, y_all
