@@ -399,6 +399,8 @@ class RAData(Data):
     GROUP = 'id'
 
     def __init__(self, **kwargs):
+        if 'fillna_value' not in kwargs:
+            kwargs['fillna_value'] = 'csDMARD therapy'
         super().__init__(**kwargs)
 
     def get_column_transformer(self, cont_feat_trans):
@@ -627,6 +629,8 @@ class SepsisData(Data):
 
     def __init__(self, *, num_levels=5, **kwargs):
         self.num_levels = num_levels
+        if 'fillna_value' not in kwargs:
+            kwargs['fillna_value'] = 0
         super().__init__(**kwargs)
 
     def get_shift_transformer(self):
