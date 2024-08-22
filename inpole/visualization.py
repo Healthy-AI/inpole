@@ -28,51 +28,48 @@ from inpole.data import get_data_handler_from_config
 
 
 def visualize_encodings(encodings, prototype_indices, frac=0.1, figsize=(6,4),
-                        annotations=None, hue=None, hue_key=None):
+                        annotations=None, hue=None, hue_key=None, **kwargs):
     
     pca = PCA(n_components=2).fit(encodings)
     
     # Transform the encodings.
     encodings_pca = pca.transform(encodings)
-
-    if hue is not None and hue_key is not None:
-        hue_mapping = {0: 'No', 1: 'Yes'}
-        hue = [hue_mapping.get(item, item) for item in hue]
-    
-    _encodings = {
+    encodings = {
         'PC 1': encodings_pca[:, 0],
         'PC 2': encodings_pca[:, 1],
         'Prototype': 'No',
         hue_key: hue
     }
-    _encodings = pd.DataFrame(_encodings)
+    encodings = pd.DataFrame(encodings)
     
     # Sample a fraction of the encodings.
-    _encodings = _encodings.sample(frac=frac, axis='index')
+    encodings = encodings.sample(frac=frac, axis='index')
     
     # Transform the prototypes.
     prototypes_pca = encodings_pca[prototype_indices]
-    prototypes_hue = [hue[i] for i in prototype_indices] if hue is not None else None    
-    _prototypes = {
+    prototypes_hue = hue[prototype_indices] if hue is not None else None
+    prototypes = {
         'PC 1': prototypes_pca[:, 0], 
         'PC 2': prototypes_pca[:, 1],
         'Prototype': 'Yes',
         hue_key: prototypes_hue
     }
-    _prototypes = pd.DataFrame(_prototypes)
+    prototypes = pd.DataFrame(prototypes)
     
     fig, ax = plt.subplots(figsize=figsize)
-
+    
     common_kwargs = {'x': 'PC 1', 'y': 'PC 2', 'ax': ax}
     if hue is not None:
         common_kwargs['hue'] = hue_key
+    common_kwargs.update(kwargs)
     
-    sns.scatterplot(data=_encodings, alpha=0.7, size='Prototype', 
-                    sizes=(20, 100), size_order=['Yes', 'No'], hue_order=['No','Yes'],
+    sns.scatterplot(data=encodings, alpha=0.7, size='Prototype', 
+                    sizes=(20, 100), size_order=['Yes', 'No'],
                     **common_kwargs)
     
     n_prototypes = prototypes_pca.shape[0]
-    sns.scatterplot(data=_prototypes, alpha=1, s=n_prototypes*[100],
+    common_kwargs.pop('legend', None)
+    sns.scatterplot(data=prototypes, alpha=1, s=n_prototypes*[100],
                     legend=False, **common_kwargs)
     
     # Annotate the prototypes.
@@ -85,7 +82,7 @@ def visualize_encodings(encodings, prototype_indices, frac=0.1, figsize=(6,4),
             ax.annotate(i, xy=(a[0]+0.1, a[1]))
 
     title = 'Prototype' if hue is None else None
-    ax.legend(loc="upper right", title=title)
+    ax.legend(loc="upper left", bbox_to_anchor=(1, 1), title=title)
 
     return fig, ax
 
