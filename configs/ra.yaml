@@ -6,15 +6,16 @@ results:
 
 metrics:
 - accuracy
+- balanced_accuracy
 - auc:
-    average: macro
-- auc: 
+    average: weighted
+- auc:
     average: null
 - ece
 - sce
 
 data:
-  path: /mimer/NOBACKUP/groups/inpole/data/ra_Xgy_0819.pkl
+  path: /mimer/NOBACKUP/groups/inpole/data/ra_Xgy_0831.pkl
   valid_size: 0.2
   test_size: 0.2
   seed: 0
