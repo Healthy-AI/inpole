@@ -196,6 +196,12 @@ class ClassifierMixin:
     def compute_sce(self, net, X, y, **kwargs):
         return net.score(X, y, metric='sce', **kwargs)
 
+    def compute_brier(self, net, X, y, **kwargs):
+        return net.score(X, y, metric='brier', **kwargs)
+
+    def compute_balanced_accuracy(self, net, X, y, **kwargs):
+        return net.score(X, y, metric='balanced_accuracy', **kwargs)
+
 
 class NeuralNetClassifier(ClassifierMixin, skorch.NeuralNetClassifier):
     prefix_ = ''
