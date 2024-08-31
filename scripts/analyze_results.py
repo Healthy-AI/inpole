@@ -16,7 +16,7 @@ from inpole import ESTIMATORS
 from inpole.data.data import discretize_doses
 
 
-metrics = ['accuracy', 'auc']
+metrics = ['balanced_accuracy', 'auc']
 
 
 sepsis_paths = {
@@ -36,22 +36,22 @@ sepsis_bins = [-0.4, -0.15, 0, 0.15, 0.4]
 
 
 ra_paths = {
-    r'$X_t$':                    '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1335_sweep',
-    r'$A_{t-1}$':                '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1336_sweep',
-    r'$H_{(t-0):t}$':            '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1337_sweep',
-    r'$\bar{H}_t$':              '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1338_sweep',  # max
-    r'$H_{(t-0):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1339_sweep',  # max
-    r'$H_{(t-1):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1340_sweep',  # max
-    r'$H_{(t-2):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1341_sweep',  # max
-    #r'$\bar{H}_t$':              '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1342_sweep',  # sum
-    #r'$H_{(t-0):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1343_sweep',  # sum
-    #r'$H_{(t-1):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1344_sweep',  # sum
-    #r'$H_{(t-2):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1345_sweep',  # sum
-    #r'$\bar{H}_t$':              '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1346_sweep',  # mean
-    #r'$H_{(t-0):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1347_sweep',  # mean
-    #r'$H_{(t-1):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1348_sweep',  # mean
-    #r'$H_{(t-2):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1349_sweep',  # mean
-    r'$H_t$':                    '/mimer/NOBACKUP/groups/inpole/results/ra/20240820_1350_sweep',
+    r'$X_t$':                    '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1232_sweep',
+    r'$A_{t-1}$':                '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1233_sweep',
+    r'$H_{(t-0):t}$':            '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1234_sweep',
+    r'$\bar{H}_t$':              '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1235_sweep',  # max
+    r'$H_{(t-0):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1236_sweep',  # max
+    r'$H_{(t-1):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1237_sweep',  # max
+    r'$H_{(t-2):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1238_sweep',  # max
+    #r'$\bar{H}_t$':              '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1239_sweep',  # sum
+    #r'$H_{(t-0):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1240_sweep',  # sum
+    #r'$H_{(t-1):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1241_sweep',  # sum
+    #r'$H_{(t-2):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1242_sweep',  # sum
+    #r'$\bar{H}_t$':              '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1243_sweep',  # mean
+    #r'$H_{(t-0):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1244_sweep',  # mean
+    #r'$H_{(t-1):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1245_sweep',  # mean
+    #r'$H_{(t-2):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1246_sweep',  # mean
+    r'$H_t$':                    '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1247_sweep',
 }
 
 ra_bins = [-9.0, -2.8, -1.0, 0.0, 2.6]
@@ -158,14 +158,14 @@ if __name__ == '__main__':
                         score = estimator.score(Xt[indices], y[indices], metric=metric)
                         out['groups'] += [(state, trial, estimator_name, group, metric, score)]
                 
-                # Performance w.r.t. time.
+                # Performance w.r.t. stage.
                 stages = Xg.cumcount() + 1
                 for t in range(1, stages.max() + 1):
                     for metric in metrics:
                         score = estimator.score(Xt[stages==t], y[stages==t], metric=metric)
                         out['stage'] += [(state, trial, estimator_name, t, metric, score)]
 
-                # Performance w.r.t. switches.
+                # Performance w.r.t. treatment switching.
                 s = switch[X.index]
                 for metric in metrics:
                     score1 = estimator.score(Xt[s], y[s], metric=metric)
@@ -173,7 +173,7 @@ if __name__ == '__main__':
                     score2 = estimator.score(Xt[~s], y[~s], metric=metric)
                     out['switch'] += [(state, trial, estimator_name, 'no', metric, score2)]
                 
-                # Performance w.r.t. time and switches.
+                # Performance w.r.t. stage and treatment switching.
                 for t in range(1, stages.max() + 1):
                     s = switch[X.index] & stages.eq(t)
                     if s.any():
