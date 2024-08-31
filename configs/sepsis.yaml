@@ -1,0 +1,59 @@
+experiment: sepsis
+
+results:
+  path: /mimer/NOBACKUP/groups/inpole/results/sepsis
+  sort_by: accuracy
+
+metrics:
+- accuracy
+- balanced_accuracy
+- auc:
+    average: weighted
+- auc: 
+    average: null
+- ece
+- sce
+
+data:
+  path: /mimer/NOBACKUP/groups/inpole/data/sepsis_data.csv
+  valid_size: 0.2
+  test_size: 0.2
+  seed: 0
+  sample_size: null
+  include_context_variables: true
+  include_previous_treatment: true
+  fillna_value: 0
+  aggregate_history: true
+  reduction: 'max'
+  add_current_context: true
+  aggregate_exclude: &exclude
+  - age
+  - gender
+  shift_periods: 1
+  shift_exclude: *exclude
+
+estimators:
+  seed: 0
+  mlp: &sepsis_net
+    epoch_scoring: accuracy
+    monitor: loss
+    early_stopping: true
+    patience: 25
+  pronet: *sepsis_net
+  sdt: *sepsis_net
+  rdt: &rdt_net
+    module__prediction: max
+    epoch_scoring: accuracy
+    monitor: loss
+    early_stopping: true
+    patience: 25
+  rnn: *sepsis_net
+  prosenet: *sepsis_net
+  truncated_rdt: *rdt_net
+  truncated_rnn: *sepsis_net
+  truncated_prosenet: *sepsis_net
+  dt:
+    num_ccp_alphas: 10
+
+hparams:
+  seed: 0
