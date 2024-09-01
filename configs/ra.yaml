@@ -15,7 +15,7 @@ metrics:
 - sce
 
 data:
-  path: /mimer/NOBACKUP/groups/inpole/data/ra_Xgy_0831.pkl
+  path: /mimer/NOBACKUP/groups/inpole/data/ra_Xgy_0901.pkl
   valid_size: 0.2
   test_size: 0.2
   seed: 0
