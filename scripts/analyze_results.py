@@ -19,40 +19,47 @@ from inpole.data.data import discretize_doses
 metrics = ['balanced_accuracy', 'auc']
 
 
-sepsis_paths = {
-    r'$X_t$': '/mimer/NOBACKUP/groups/oovgen/inpole/results/sepsis/20240304_1126_sweep',
-    r'$A_{t-1}$': '/mimer/NOBACKUP/groups/oovgen/inpole/results/sepsis/20240402_1810_sweep',
-    r'$H_{(t-0):t}$': '/mimer/NOBACKUP/groups/oovgen/inpole/results/sepsis/20240304_1127_sweep',
-    r'$\bar{H}_t$': '/mimer/NOBACKUP/groups/oovgen/inpole/results/sepsis/20240304_2152_sweep',
-    r'$H_{(t-0):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/oovgen/inpole/results/sepsis/20240304_2153_sweep',
-    #r'$H_{(t-1):t}$': '/mimer/NOBACKUP/groups/oovgen/inpole/results/sepsis/20240304_1131_sweep',
-    r'$H_{(t-1):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/oovgen/inpole/results/sepsis/20240320_2051_sweep',
-    #r'$H_{(t-2):t}$': '/mimer/NOBACKUP/groups/oovgen/inpole/results/sepsis/20240304_1132_sweep',
-    r'$H_{(t-2):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/oovgen/inpole/results/sepsis/20240402_1811_sweep',
-    r'$H_t$': '/mimer/NOBACKUP/groups/oovgen/inpole/results/sepsis/20240324_1040_sweep',
-}
+sepsis_paths = [
+    (r'$X_t$',                    '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2120_sweep'),
+    (r'$A_{t-1}$',                '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2121_sweep'),
+    (r'$H_{(t-0):t}$',            '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2122_sweep'),
+    (r'$\bar{H}_t$',              '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2123_sweep'),  # max
+    (r'$H_{(t-0):t}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2124_sweep'),  # max
+    (r'$H_{(t-1):t}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2125_sweep'),  # max
+    (r'$H_{(t-2):t}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2126_sweep'),  # max
+    (r'$\bar{H}_t$',              '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2127_sweep'),  # sum
+    (r'$H_{(t-0):t}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2128_sweep'),  # sum
+    (r'$H_{(t-1):t}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2129_sweep'),  # sum
+    (r'$H_{(t-2):t}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2130_sweep'),  # sum
+    (r'$\bar{H}_t$',              '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2131_sweep'),  # mean
+    (r'$H_{(t-0):t}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2132_sweep'),  # mean
+    (r'$H_{(t-1):t}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2133_sweep'),  # mean
+    (r'$H_{(t-2):t}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2134_sweep'),  # mean
+    (r'$H_t$',                    '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2135_sweep'),
+]
 
 sepsis_bins = [-0.4, -0.15, 0, 0.15, 0.4]
 
 
-ra_paths = {
-    r'$X_t$':                    '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1232_sweep',
-    r'$A_{t-1}$':                '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1233_sweep',
-    r'$H_{(t-0):t}$':            '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1234_sweep',
-    r'$\bar{H}_t$':              '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1235_sweep',  # max
-    r'$H_{(t-0):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1236_sweep',  # max
-    r'$H_{(t-1):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1237_sweep',  # max
-    r'$H_{(t-2):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1238_sweep',  # max
-    #r'$\bar{H}_t$':              '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1239_sweep',  # sum
-    #r'$H_{(t-0):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1240_sweep',  # sum
-    #r'$H_{(t-1):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1241_sweep',  # sum
-    #r'$H_{(t-2):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1242_sweep',  # sum
-    #r'$\bar{H}_t$':              '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1243_sweep',  # mean
-    #r'$H_{(t-0):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1244_sweep',  # mean
-    #r'$H_{(t-1):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1245_sweep',  # mean
-    #r'$H_{(t-2):t}, \bar{H}_t$': '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1246_sweep',  # mean
-    r'$H_t$':                    '/mimer/NOBACKUP/groups/inpole/results/ra/20240831_1247_sweep',
-}
+ra_paths = [
+    (r'$X_t$',                    '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1931_sweep'),
+    (r'$A_{t-1}$',                '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1932_sweep'),
+    (r'$H_{(t-0):t}$',            '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1933_sweep'),
+    (r'$\bar{H}_t$',              '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1934_sweep'),  # max
+    (r'$H_{(t-0):t}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1935_sweep'),  # max
+    (r'$H_{(t-1):t}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1936_sweep'),  # max
+    (r'$H_{(t-2):t}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1937_sweep'),  # max
+    (r'$\bar{H}_t$',              '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1938_sweep'),  # sum
+    (r'$H_{(t-0):t}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1939_sweep'),  # sum
+    (r'$H_{(t-1):t}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1940_sweep'),  # sum
+    (r'$H_{(t-2):t}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1941_sweep'),  # sum
+    (r'$\bar{H}_t$',              '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1942_sweep'),  # mean
+    (r'$H_{(t-0):t}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1943_sweep'),  # mean
+    (r'$H_{(t-1):t}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1944_sweep'),  # mean
+    (r'$H_{(t-2):t}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1945_sweep'),  # mean
+    (r'$H_t$',                    '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1946_sweep'),
+]
+ra_paths = None
 
 ra_bins = [-9.0, -2.8, -1.0, 0.0, 2.6]
 
@@ -112,14 +119,14 @@ if __name__ == '__main__':
         raise ValueError(f"Unknown experiment '{args.experiment}'.")
     
     out = collections.defaultdict(list)
-    out['probas'] = [('State', 'Trial', 'Estimator', 'Probas')]
-    out['groups'] += [('State', 'Trial', 'Estimator', 'Group', 'Metric', 'Score')]
-    out['stage'] += [('State', 'Trial', 'Estimator', 'Stage', 'Metric', 'Score')]
-    out['switch'] += [('State', 'Trial', 'Estimator', 'Switch', 'Metric', 'Score')]
-    out['switch_stage'] += [('State', 'Trial', 'Estimator', 'Switch', 'Stage', 'Metric', 'Score')]
-    out['rho'] += [('State', 'Trial', 'Estimator', 'Stage', 'Rho')]
+    out['probas'] = [('State', 'Reduction', 'Trial', 'Estimator', 'Probas')]
+    out['groups'] += [('State', 'Reduction', 'Trial', 'Estimator', 'Group', 'Metric', 'Score')]
+    out['stage'] += [('State', 'Reduction', 'Trial', 'Estimator', 'Stage', 'Metric', 'Score')]
+    out['switch'] += [('State', 'Reduction', 'Trial', 'Estimator', 'Switch', 'Metric', 'Score')]
+    out['switch_stage'] += [('State', 'Reduction', 'Trial', 'Estimator', 'Switch', 'Stage', 'Metric', 'Score')]
+    out['rho'] += [('State', 'Reduction', 'Trial', 'Estimator', 'Stage', 'Rho')]
     
-    for state, experiment_path in all_paths.items():
+    for state, experiment_path in all_paths:
         trial_dirs = os.listdir(join(experiment_path, 'sweep'))
         for trial in range(1, len(trial_dirs) + 1):
             for estimator_name in ESTIMATORS:
@@ -128,14 +135,16 @@ if __name__ == '__main__':
                         experiment_path, trial, estimator_name, return_results_path=True)
                 except FileNotFoundError:
                     continue
-
-                _print_log(f"State: {state} | Estimator: {estimator_name} | Trial: {trial}")
                 
                 config_path = join(results_path, 'config.yaml')
                 config = load_config(config_path)
                 data_handler = get_data_handler_from_config(config)
                 X, y = data_handler.get_splits()[-1]  # Test data
                 Xg = X.groupby(data_handler.GROUP)
+
+                reduction = data_handler.reduction if r'\bar{H}_t' in state else 'none'
+
+                _print_log(f"State: {state} | Reduction: {reduction} | Trial: {trial} | Estimator: {estimator_name}")
 
                 # Preprocess the input only once to save time.
                 #
@@ -146,7 +155,7 @@ if __name__ == '__main__':
 
                 # Collect probabilities.
                 probas = estimator.predict_proba(Xt)
-                out['probas'] += [(state, trial, estimator_name, probas)]
+                out['probas'] += [(state, reduction, trial, estimator_name, probas)]
 
                 # Performance w.r.t. patient groups.
                 group_indices = [
@@ -156,22 +165,22 @@ if __name__ == '__main__':
                 for group, indices in enumerate(group_indices, start=1):
                     for metric in metrics:
                         score = estimator.score(Xt[indices], y[indices], metric=metric)
-                        out['groups'] += [(state, trial, estimator_name, group, metric, score)]
+                        out['groups'] += [(state, reduction, trial, estimator_name, group, metric, score)]
                 
                 # Performance w.r.t. stage.
                 stages = Xg.cumcount() + 1
                 for t in range(1, stages.max() + 1):
                     for metric in metrics:
                         score = estimator.score(Xt[stages==t], y[stages==t], metric=metric)
-                        out['stage'] += [(state, trial, estimator_name, t, metric, score)]
+                        out['stage'] += [(state, reduction, trial, estimator_name, t, metric, score)]
 
                 # Performance w.r.t. treatment switching.
                 s = switch[X.index]
                 for metric in metrics:
                     score1 = estimator.score(Xt[s], y[s], metric=metric)
-                    out['switch'] += [(state, trial, estimator_name, 'yes', metric, score1)]
+                    out['switch'] += [(state, reduction, trial, estimator_name, 'yes', metric, score1)]
                     score2 = estimator.score(Xt[~s], y[~s], metric=metric)
-                    out['switch'] += [(state, trial, estimator_name, 'no', metric, score2)]
+                    out['switch'] += [(state, reduction, trial, estimator_name, 'no', metric, score2)]
                 
                 # Performance w.r.t. stage and treatment switching.
                 for t in range(1, stages.max() + 1):
@@ -179,9 +188,9 @@ if __name__ == '__main__':
                     if s.any():
                         for metric in metrics:
                             score1 = estimator.score(Xt[s], y[s], metric=metric)
-                            out['switch_stage'] += [(state, trial, estimator_name, 'yes', t, metric, score1)]
+                            out['switch_stage'] += [(state, reduction, trial, estimator_name, 'yes', t, metric, score1)]
                             score2 = estimator.score(Xt[~s], y[~s], metric=metric)
-                            out['switch_stage'] += [(state, trial, estimator_name, 'no', t, metric, score2)]
+                            out['switch_stage'] += [(state, reduction, trial, estimator_name, 'no', t, metric, score2)]
             
                 # Probability products.
                 probas = estimator.predict_proba(Xt)
@@ -191,9 +200,9 @@ if __name__ == '__main__':
                 for t in range(1, stages.max() + 1):
                     probas_yt = probas_y_grouped.filter(lambda x: len(x) >= t)
                     rho = probas_yt.groupby(X[data_handler.GROUP]).prod()
-                    out['rho'] += [(state, trial, estimator_name, t, rho.tolist())]
+                    out['rho'] += [(state, reduction, trial, estimator_name, t, rho.tolist())]
                 rho = probas_y_grouped.prod()
-                out['rho'] += [(state, trial, estimator_name, -1, rho.tolist())]
+                out['rho'] += [(state, reduction, trial, estimator_name, -1, rho.tolist())]
     
     _print_log("Saving data...")
     file_name = f'results_{args.experiment}.pickle'
