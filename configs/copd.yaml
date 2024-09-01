@@ -1,0 +1,64 @@
+
+
+experiment: copd
+
+results:
+  path: /mimer/NOBACKUP/groups/inpole/results/copd
+  sort_by: accuracy
+
+metrics:
+- accuracy
+- balanced_accuracy
+- auc:
+    average: weighted
+- auc: 
+    average: null
+- ece
+- sce
+
+data:
+  path: /mimer/NOBACKUP/groups/oovgen/inpole/data/copd/COPD_2003.csv
+  valid_size: 0.2
+  test_size: 0.2
+  seed: 0
+  sample_size: null
+  include_context_variables: true
+  include_previous_treatment: true
+  fillna_value: 0
+  aggregate_history: true
+  reduction: 'max'
+  add_current_context: true
+  aggregate_exclude: &exclude
+  - Age
+  - gender
+  - ethnicity
+  - insurance
+  - PatientID
+  shift_periods: 1
+  shift_exclude: *exclude
+
+estimators:
+  seed: 0
+  mlp: &copd_net
+    epoch_scoring: accuracy
+    monitor: loss
+    early_stopping: true
+    patience: 25
+  pronet: *copd_net
+  sdt: *copd_net
+  rdt: &rdt_net
+    module__prediction: max
+    epoch_scoring: accuracy
+    monitor: loss
+    early_stopping: true
+    patience: 25
+  rnn: *copd_net
+  prosenet: *copd_net
+  truncated_rdt: *rdt_net
+  truncated_rnn: *copd_net
+  truncated_prosenet: *copd_net
+  dt:
+    num_ccp_alphas: 10
+
+hparams:
+  seed: 0
