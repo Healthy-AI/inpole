@@ -59,7 +59,6 @@ ra_paths = [
     (r'$H_{(t-2):t}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1945_sweep'),  # mean
     (r'$H_t$',                    '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1946_sweep'),
 ]
-ra_paths = None
 
 ra_bins = [-9.0, -2.8, -1.0, 0.0, 2.6]
 
@@ -102,7 +101,8 @@ if __name__ == '__main__':
     if args.experiment == 'sepsis':
         all_paths = sepsis_paths
         patient_groups = get_patient_groups(data, 'icustayid', 'NEWS2', sepsis_bins)
-        config = load_config(join(sepsis_paths['$A_{t-1}$'], 'default_config.yaml'))
+        config_path = join(dict(sepsis_paths)['$A_{t-1}$'], 'default_config.yaml')
+        config = load_config(config_path)
         Y_prev, y, _groups = SepsisData(**config['data']).load()  # S_t = A_{t-1}
         Y_prev_discrete = Y_prev.apply(discretize_doses, raw=True, num_levels=5)
         _, y_prev = np.unique(Y_prev_discrete, axis=0, return_inverse=True)
@@ -111,7 +111,8 @@ if __name__ == '__main__':
         all_paths = ra_paths
         data = data[data.stage.ge(1)]
         patient_groups = get_patient_groups(data, 'id', 'cdai', ra_bins)
-        config = load_config(join(ra_paths['$A_{t-1}$'], 'default_config.yaml'))
+        config_path = join(dict(ra_paths)['$A_{t-1}$'], 'default_config.yaml')
+        config = load_config(config_path)
         X, y, _groups = RAData(**config['data']).load()
         y_prev = X.prev_therapy
         switch = (y != y_prev)
