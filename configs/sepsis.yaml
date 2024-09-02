@@ -7,8 +7,8 @@ results:
 metrics:
 - accuracy
 - balanced_accuracy
-- auc:
-    average: weighted
+- auc_macro
+- auc_weighted
 - auc: 
     average: null
 - ece

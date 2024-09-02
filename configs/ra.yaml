@@ -2,13 +2,13 @@ experiment: ra
 
 results:
   path: /mimer/NOBACKUP/groups/inpole/results/ra
-  sort_by: auc
+  sort_by: auc_macro
 
 metrics:
 - accuracy
 - balanced_accuracy
-- auc:
-    average: weighted
+- auc_macro
+- auc_weighted
 - auc:
     average: null
 - ece
