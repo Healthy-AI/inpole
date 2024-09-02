@@ -34,6 +34,7 @@ from .utils import shift_variable
 
 # Include new datasets here.
 __all__ = [
+    'is_treatment_switch',
     'get_data_handler_class',
     'get_data_handler_from_config',
     'RAData',
@@ -42,6 +43,29 @@ __all__ = [
     'SepsisData',
     'COPDData'
 ]
+
+
+def is_treatment_switch(config, index=None):
+    experiment = config['experiment']
+    # We load data for the state S_t = A_{t-1}, meaning that X only contains
+    # the previous treatment.
+    kwargs = deepcopy(config['data'])
+    kwargs['include_context_variables'] = False
+    kwargs['include_previous_treatment'] = True
+    kwargs['aggregate_history'] = False
+    kwargs['shift_periods'] = 0
+    if experiment == 'sepsis':
+        Y_prev, y, _groups = SepsisData(**kwargs).load()
+        Y_prev_discrete = Y_prev.apply(discretize_doses, raw=True, num_levels=5)
+        _, y_prev = np.unique(Y_prev_discrete, axis=0, return_inverse=True)
+    elif experiment  == 'ra':
+        y_prev, y, _groups = RAData(**kwargs).load()
+        y_prev = y_prev.prev_therapy  # Convert dataframe to series
+    else:
+        raise ValueError(f"Experiment '{experiment}' not supported.")
+    switch = (y != y_prev)
+    # For Sepsis, `switch` is a NumPy array. For RA, `switch` is a pandas series.
+    return switch if index is None else switch[index]
 
 
 def get_data_handler_class(name):

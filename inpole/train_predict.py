@@ -1,4 +1,3 @@
-import copy
 from os.path import join
 
 import pandas as pd
@@ -20,8 +19,7 @@ from .models import (
     DecisionTreeClassifier,
     CalibratedClassifierCV
 )
-from .data import RAData
-from .data.data import get_data_handler_from_config
+from .data import get_data_handler_from_config, is_treatment_switch
 from .data.utils import drop_shifted_columns
 from .pipeline import create_pipeline
 from . import NET_ESTIMATORS, RECURRENT_NET_ESTIMATORS
@@ -55,24 +53,6 @@ def _get_previous_therapy_index(feature_names, prev_therapy_prefix):
             f"No previous therapies found with prefix '{prev_therapy_prefix}'."
         )
     return prev_therapy_index
-
-
-def _separate_switches(preprocessor, treatment, X, y):
-    # We find therapy switches by comparing the current therapy to the previous
-    # one, as defined by the input features with the prefix "prev_treatment_". 
-    # In the RA case, this is different from comparing `y` to a shifted version 
-    # of `y` since non-registry events are included in the treatment history.
-
-    assert isinstance(treatment, str)
-
-    feature_names = get_feature_names(preprocessor)
-    prefix = f'prev_{treatment}_'
-    prev_therapy_index = _get_previous_therapy_index(feature_names, prefix)
-
-    Xt = preprocessor.transform(X)
-    y_prev = np.argmax(Xt[:, prev_therapy_index], axis=1)
-    switch = (y_prev != y)
-    return switch
 
 
 def train(config, estimator_name, calibrate=False):
@@ -185,20 +165,10 @@ def predict(
     labels = data_handler.get_labels()
 
     if switches_only:
-        # @TODO: This is not correct for sequence models.
-        assert not isinstance(pipeline, CalibratedClassifierCV)
-        preprocessor = pipeline.named_steps['preprocessor']
-        try:
-            switch = _separate_switches(preprocessor, data_handler.TREATMENT, X, y)
-        except ValueError:
-            # Workaround when the previous therapy cannot be found in `X`.
-            kwargs = copy.deepcopy(config['data'])
-            kwargs['include_previous_treatment'] = True
-            kwargs['aggregate_history'] = False
-            X2, y2, _groups = RAData(**kwargs).load()
-            switch = (y2 != X2.prev_therapy)
-            switch = switch[X.index]
-        X, y = X[switch], y[switch]
+        is_switch = is_treatment_switch(config, index=X.index)
+        sample_weight = is_switch.astype(float)
+        for _metric, kwargs in metrics:
+            kwargs['sample_weight'] = sample_weight
         data[-1] += '_s'
     
     scores = collect_scores(pipeline, X, y, metrics, columns, data, labels)

@@ -122,6 +122,8 @@ class EpochScoring(cbs.EpochScoring):
 class ClassifierMixin:
     accepted_metrics = {
         'auc': {'lower_is_better': False},
+        'auc_macro': {'lower_is_better': False},
+        'auc_weighted': {'lower_is_better': False},
         'accuracy': {'lower_is_better': False},
         'balanced_accuracy': {'lower_is_better': False},
         'ece': {'lower_is_better': True},
@@ -143,12 +145,14 @@ class ClassifierMixin:
                 dataset = self.get_dataset(X)
             y = self.collect_labels_from_dataset(dataset)
         
-        if metric == 'auc':
+        if metric == 'auc' or metric == 'auc_macro' or metric == 'auc_weighted':
             yp = self.predict_proba(X)
             if yp.shape[1] == 2:
                 yp = yp[:, 1]
             if yp.ndim > 1 and not 'multi_class' in kwargs:
                 kwargs['multi_class'] = 'ovr'
+            if metric == 'auc_macro' or metric == 'auc_weighted':
+                kwargs['average'] = metric.split('_')[-1]
             try:
                 return metrics.roc_auc_score(y, yp, **kwargs)
             except ValueError:
@@ -187,6 +191,12 @@ class ClassifierMixin:
     
     def compute_auc(self, net, X, y, **kwargs):
         return net.score(X, y, metric='auc', **kwargs)
+
+    def compute_auc_macro(self, net, X, y, **kwargs):
+        return net.score(X, y, metric='auc_macro', **kwargs)
+
+    def compute_auc_weighted(self, net, X, y, **kwargs):
+        return net.score(X, y, metric='auc_weighted', **kwargs)
 
     def compute_accuracy(self, net, X, y, **kwargs):
         return net.score(X, y, metric='accuracy', **kwargs)

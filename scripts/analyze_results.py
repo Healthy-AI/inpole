@@ -131,7 +131,7 @@ if __name__ == '__main__':
         patient_groups = get_patient_groups(data, 'icustayid', 'NEWS2', sepsis_bins)
         config_path = join(dict(sepsis_paths)['$A_{t-1}$'], 'default_config.yaml')
         config = load_config(config_path)
-        Y_prev, y, _groups = SepsisData(**config['data']).load()  # S_t = A_{t-1}
+        Y_prev, y, _groups = SepsisData(**config['data']).load()  # S_t = A_{t-1} => X = Y_prev
         Y_prev_discrete = Y_prev.apply(discretize_doses, raw=True, num_levels=5)
         _, y_prev = np.unique(Y_prev_discrete, axis=0, return_inverse=True)
         switch = (y != y_prev)
