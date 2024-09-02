@@ -185,6 +185,7 @@ def predict(
     labels = data_handler.get_labels()
 
     if switches_only:
+        # @TODO: This is not correct for sequence models.
         assert not isinstance(pipeline, CalibratedClassifierCV)
         preprocessor = pipeline.named_steps['preprocessor']
         try:

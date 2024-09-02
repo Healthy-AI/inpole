@@ -145,7 +145,8 @@ class ClassifierMixin:
         
         if metric == 'auc':
             yp = self.predict_proba(X)
-            if yp.shape[1] == 2: yp = yp[:, 1]
+            if yp.shape[1] == 2:
+                yp = yp[:, 1]
             if yp.ndim > 1 and not 'multi_class' in kwargs:
                 kwargs['multi_class'] = 'ovr'
             try:

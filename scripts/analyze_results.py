@@ -2,10 +2,15 @@ import os
 from os.path import join
 import argparse
 import collections
-import pickle
+import joblib
 
 import pandas as pd
 import numpy as np
+from sklearn.metrics import (
+    accuracy_score,
+    balanced_accuracy_score,
+    roc_auc_score
+)
 from amhelpers.config_parsing import load_config
 
 from inpole.data import get_data_handler_from_config
@@ -16,7 +21,7 @@ from inpole import ESTIMATORS
 from inpole.data.data import discretize_doses
 
 
-metrics = ['balanced_accuracy', 'auc']
+metrics = ['accuracy', 'balanced_accuracy', 'auc_macro', 'auc_weighted']
 
 
 sepsis_paths = [
@@ -81,6 +86,29 @@ def get_patient_groups(data, group, variable, bin_values):
     return [s.index for s in segments]
 
 
+def get_score(y, y_proba, metric):
+    if metric == 'accuracy':
+        y_pred = y_proba.argmax(axis=1)
+        return accuracy_score(y, y_pred)
+    elif metric == 'balanced_accuracy':
+        y_pred = y_proba.argmax(axis=1)
+        return balanced_accuracy_score(y, y_pred)
+    elif metric == 'auc_macro' or 'auc_weighted':
+        average = metric.split('_')[-1]
+        if y_proba.shape[1] == 2:
+            y_proba = y_proba[:, 1]
+        if y_proba.ndim > 1:
+            kwargs = {'average': average, 'multi_class': 'ovr'}
+        else:
+            kwargs = {}
+        try:
+            return roc_auc_score(y, y_proba, **kwargs)
+        except ValueError:
+            return float('nan')
+    else:
+        raise ValueError(f"Unknown metric '{metric}'.")
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--experiment', type=str, required=True)
@@ -126,6 +154,8 @@ if __name__ == '__main__':
     out['switch'] += [('State', 'Reduction', 'Trial', 'Estimator', 'Switch', 'Metric', 'Score')]
     out['switch_stage'] += [('State', 'Reduction', 'Trial', 'Estimator', 'Switch', 'Stage', 'Metric', 'Score')]
     out['rho'] += [('State', 'Reduction', 'Trial', 'Estimator', 'Stage', 'Rho')]
+
+    out_file_name = f'results_{args.experiment}.pickle'
     
     for state, experiment_path in all_paths:
         trial_dirs = os.listdir(join(experiment_path, 'sweep'))
@@ -142,22 +172,15 @@ if __name__ == '__main__':
                 data_handler = get_data_handler_from_config(config)
                 X, y = data_handler.get_splits()[-1]  # Test data
                 Xg = X.groupby(data_handler.GROUP)
-
+    
                 reduction = data_handler.reduction if r'\bar{H}_t' in state else 'none'
-
+    
                 _print_log(f"State: {state} | Reduction: {reduction} | Trial: {trial} | Estimator: {estimator_name}")
-
-                # Preprocess the input only once to save time.
-                #
-                # Note that we cannot reuse the preprocessed input for different 
-                # estimators because the preprocessor depends on the estimator.
-                preprocessor, estimator = pipeline.named_steps.values()
-                Xt = preprocessor.transform(X)
-
+    
                 # Collect probabilities.
-                probas = estimator.predict_proba(Xt)
+                probas = pipeline.predict_proba(X)
                 out['probas'] += [(state, reduction, trial, estimator_name, probas)]
-
+    
                 # Performance w.r.t. patient groups.
                 group_indices = [
                     np.concatenate([Xg.indices.get(id) for id in ids if id in Xg.groups])
@@ -165,22 +188,22 @@ if __name__ == '__main__':
                 ]
                 for group, indices in enumerate(group_indices, start=1):
                     for metric in metrics:
-                        score = estimator.score(Xt[indices], y[indices], metric=metric)
+                        score = get_score(y[indices], probas[indices], metric=metric)
                         out['groups'] += [(state, reduction, trial, estimator_name, group, metric, score)]
                 
                 # Performance w.r.t. stage.
                 stages = Xg.cumcount() + 1
                 for t in range(1, stages.max() + 1):
                     for metric in metrics:
-                        score = estimator.score(Xt[stages==t], y[stages==t], metric=metric)
+                        score = get_score(y[stages==t], probas[stages==t], metric=metric)
                         out['stage'] += [(state, reduction, trial, estimator_name, t, metric, score)]
-
+    
                 # Performance w.r.t. treatment switching.
                 s = switch[X.index]
                 for metric in metrics:
-                    score1 = estimator.score(Xt[s], y[s], metric=metric)
+                    score1 = get_score(y[s], probas[s], metric=metric)
                     out['switch'] += [(state, reduction, trial, estimator_name, 'yes', metric, score1)]
-                    score2 = estimator.score(Xt[~s], y[~s], metric=metric)
+                    score2 = get_score(y[~s], probas[~s], metric=metric)
                     out['switch'] += [(state, reduction, trial, estimator_name, 'no', metric, score2)]
                 
                 # Performance w.r.t. stage and treatment switching.
@@ -188,13 +211,12 @@ if __name__ == '__main__':
                     s = switch[X.index] & stages.eq(t)
                     if s.any():
                         for metric in metrics:
-                            score1 = estimator.score(Xt[s], y[s], metric=metric)
+                            score1 = get_score(y[s], probas[s], metric=metric)
                             out['switch_stage'] += [(state, reduction, trial, estimator_name, 'yes', t, metric, score1)]
-                            score2 = estimator.score(Xt[~s], y[~s], metric=metric)
+                            score2 = get_score(y[~s], probas[~s], metric=metric)
                             out['switch_stage'] += [(state, reduction, trial, estimator_name, 'no', t, metric, score2)]
             
                 # Probability products.
-                probas = estimator.predict_proba(Xt)
                 probas_y = probas[np.arange(len(y)), y]
                 probas_y = pd.Series(probas_y, index=X.index)
                 probas_y_grouped = probas_y.groupby(X[data_handler.GROUP])
@@ -204,8 +226,9 @@ if __name__ == '__main__':
                     out['rho'] += [(state, reduction, trial, estimator_name, t, rho.tolist())]
                 rho = probas_y_grouped.prod()
                 out['rho'] += [(state, reduction, trial, estimator_name, -1, rho.tolist())]
-    
-    _print_log("Saving data...")
-    file_name = f'results_{args.experiment}.pickle'
-    with open(join(args.out_path, file_name), 'wb') as handle:
-        pickle.dump(out, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+                _print_log("Saving intermediate data...")
+                joblib.dump(out, join(args.out_path, out_file_name))
+
+    _print_log("Saving final data...")
+    joblib.dump(out, join(args.out_path, out_file_name))
