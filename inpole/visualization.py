@@ -644,11 +644,12 @@ def get_all_scores(all_experiment_paths):
     for experiment, experiment_paths in all_experiment_paths.items():
         if experiment_paths is None:
             continue
-        for state, experiment_path in experiment_paths.items():
+        for state, experiment_path in experiment_paths:
             if experiment_path is None:
                 continue
             scores_path = os.path.join(experiment_path, 'scores.csv')
             if not os.path.exists(scores_path):
+                print(f"No scores available for {experiment_path}.")
                 continue
             scores = pd.read_csv(scores_path)
     
@@ -664,6 +665,10 @@ def get_all_scores(all_experiment_paths):
             
             scores['data'] = experiment
             scores['state'] = state
+            if r'\bar{H}_t' in state:
+                scores['reduction'] = data_handler.reduction
+            else:
+                scores['reduction'] = 'none'
             state_dim = pipeline.n_features_in_
             if data_handler.GROUP in pipeline.feature_names_in_:
                 state_dim -= 1
@@ -678,6 +683,7 @@ def get_all_scores(all_experiment_paths):
 
 def get_scoring_table(
     all_scores,
+    groupby=['data', 'state', 'reduction', 'state_dim', 'estimator'],
     metric='auc',
     include_cis=False,
     exclude_models=[],
@@ -685,8 +691,7 @@ def get_scoring_table(
     model_order=None,
     index=None,
 ):
-    by = ['data', 'state', 'state_dim', 'estimator']
-    g = all_scores[all_scores.subset == 'test'].groupby(by)
+    g = all_scores[all_scores.subset == 'test'].groupby(groupby)
     
     agg = EstimateAggregator(np.mean, 'ci', n_boot=1000, seed=0)
     
