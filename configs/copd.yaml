@@ -33,7 +33,6 @@ data:
   - gender
   - ethnicity
   - insurance
-  - PatientID
   shift_periods: 1
   shift_exclude: *exclude
 
