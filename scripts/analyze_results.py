@@ -222,7 +222,8 @@ if __name__ == '__main__':
                 probas_y_grouped = probas_y.groupby(X[data_handler.GROUP])
                 for t in range(1, stages.max() + 1):
                     probas_yt = probas_y_grouped.filter(lambda x: len(x) >= t)
-                    rho = probas_yt.groupby(X[data_handler.GROUP]).head(t).prod()
+                    probas_yt = probas_yt.groupby(X[data_handler.GROUP]).head(t)
+                    rho = probas_yt.groupby(X[data_handler.GROUP]).prod()
                     out['rho'] += [(state, reduction, trial, estimator_name, t, rho.tolist())]
                 rho = probas_y_grouped.prod()
                 out['rho'] += [(state, reduction, trial, estimator_name, -1, rho.tolist())]
