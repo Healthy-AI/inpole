@@ -1,0 +1,44 @@
+experiment: adni
+
+results:
+  path: /mimer/NOBACKUP/groups/inpole/results/adni
+  sort_by: auc
+
+metrics:
+- accuracy
+- balanced_accuracy
+- auc
+- ece
+
+data:
+  path: /mimer/NOBACKUP/groups/inpole/data/adni_Xgy.pkl
+  valid_size: 0.2
+  test_size: 0.2
+  seed: 0
+  sample_size: null
+  include_context_variables: true
+  include_previous_treatment: true
+  fillna_value: null
+  aggregate_history: true
+  reduction: 'max'
+  add_current_context: true
+  aggregate_exclude: &exclude
+  - AGE
+  - PTGENDER
+  - PTMARRY
+  - PTEDUCAT
+  - APOE4
+  shift_periods: 1
+  shift_exclude: *exclude
+
+estimators:
+  seed: 0
+  rdt:
+    module__prediction: max
+  truncated_rdt:
+    module__prediction: max
+  dt:
+    num_ccp_alphas: 10
+
+hparams:
+  seed: 0
