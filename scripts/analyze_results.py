@@ -125,7 +125,7 @@ if __name__ == '__main__':
     else:
         file_format = args.data_path.split('.')[-1]
         raise ValueError(f"Unknown file format: {file_format}.")
-    
+
     if args.experiment == 'sepsis':
         all_paths = sepsis_paths
         patient_groups = get_patient_groups(data, 'icustayid', 'NEWS2', sepsis_bins)
@@ -222,7 +222,7 @@ if __name__ == '__main__':
                 probas_y_grouped = probas_y.groupby(X[data_handler.GROUP])
                 for t in range(1, stages.max() + 1):
                     probas_yt = probas_y_grouped.filter(lambda x: len(x) >= t)
-                    rho = probas_yt.groupby(X[data_handler.GROUP]).prod()
+                    rho = probas_yt.groupby(X[data_handler.GROUP]).head(t).prod()
                     out['rho'] += [(state, reduction, trial, estimator_name, t, rho.tolist())]
                 rho = probas_y_grouped.prod()
                 out['rho'] += [(state, reduction, trial, estimator_name, -1, rho.tolist())]
