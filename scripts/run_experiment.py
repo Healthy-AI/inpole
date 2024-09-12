@@ -10,9 +10,9 @@ except ModuleNotFoundError:
     estimators_kwargs = {}
 
 
-TRAIN_SCRIPT_PATH = 'scripts/slurm_templates/training'
-PRE_SCRIPT_PATH = 'scripts/slurm_templates/preprocessing'
-POST_SCRIPT_PATH = 'scripts/slurm_templates/postprocessing'
+TRAIN_SCRIPT_PATH = 'scripts/slurm/training_template'
+PRE_SCRIPT_PATH = 'scripts/slurm/preprocessing_template'
+POST_SCRIPT_PATH = 'scripts/slurm/postprocessing_template'
 
 ACCOUNT = 'NAISS2023-22-686'
 
