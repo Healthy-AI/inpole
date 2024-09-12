@@ -23,11 +23,7 @@ if __name__ == '__main__':
     config_path = join(args.experiment_path, 'default_config.yaml')
     config = load_config(config_path)
 
-    try:
-        sort_by = config['results']['sort_by']
-    except KeyError:
-        sort_by = 'auc'
-
+    sort_by = config['results']['sort_by']
     sorter = partial(score_sorter, metric=sort_by)
     
     postprocessing = Postprocessing(args.experiment_path)

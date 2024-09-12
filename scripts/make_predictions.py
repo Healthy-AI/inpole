@@ -47,7 +47,8 @@ if __name__ == '__main__':
             template=args.train_script, experiment='',
             experiment_path=args.experiment_path, estimator=estimator,
             jobname=jobname, jobdir=jobdir,
-            options=options)
+            options=options
+        )
         
         with open(jobscript_path, 'r') as f:
             jobscript = f.read()
