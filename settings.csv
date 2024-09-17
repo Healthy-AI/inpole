@@ -1,0 +1,17 @@
+state;include_context_variables;include_previous_treatment;aggregate_history;reduction;add_current_context;shift_periods;estimators
+X_t;true;false;false;null;false;0;lr dt mlp
+A_{t-1};false;true;false;null;false;0;lr dt mlp
+H_{(t-0):t};true;true;false;null;false;0;lr dt mlp
+\bar{H}_t;true;true;true;max;false;0;lr dt mlp
+H_{(t-0):t}, \bar{H}_t;true;true;true;max;true;0;lr dt mlp
+H_{(t-1):t}, \bar{H}_t;true;true;true;max;true;1;lr dt mlp
+H_{(t-2):t}, \bar{H}_t;true;true;true;max;true;2;lr dt mlp
+\bar{H}_t;true;true;true;sum;false;0;lr dt mlp
+H_{(t-0):t}, \bar{H}_t;true;true;true;sum;true;0;lr dt mlp
+H_{(t-1):t}, \bar{H}_t;true;true;true;sum;true;1;lr dt mlp
+H_{(t-2):t}, \bar{H}_t;true;true;true;sum;true;2;lr dt mlp
+\bar{H}_t;true;true;true;mean;false;0;lr dt mlp
+H_{(t-0):t}, \bar{H}_t;true;true;true;mean;true;0;lr dt mlp
+H_{(t-1):t}, \bar{H}_t;true;true;true;mean;true;1;lr dt mlp
+H_{(t-2):t}, \bar{H}_t;true;true;true;mean;true;2;lr dt mlp
+H_t;true;true;false;null;false;0;rdt prosenet rnn
