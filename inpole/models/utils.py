@@ -9,15 +9,12 @@ from ..data.utils import SequentialDataset, TruncatedHistoryDataset
 
 
 def expects_groups(estimator):
-    if estimator.__class__.__name__ == 'SwitchPropensityEstimator':
-        return all([expects_groups(e) for e in estimator.estimators])
-    return (
-        hasattr(estimator, 'dataset') and
-        (
-            estimator.dataset == SequentialDataset or
-            estimator.dataset == TruncatedHistoryDataset
+    if hasattr(estimator, 'dataset'):
+        return (
+            estimator.dataset == SequentialDataset
+            or estimator.dataset == TruncatedHistoryDataset
         )
-    )
+    return False
 
 
 def plot_stats(history, ykey, from_batches, ax, **kwargs):

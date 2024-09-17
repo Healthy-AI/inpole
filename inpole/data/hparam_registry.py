@@ -9,9 +9,6 @@ def _hparams(experiment, seed):
         assert(name not in hparams)
         random_state = np.random.RandomState(seed_hash(seed, name))
         hparams[name] = (default_val, random_val_fn(random_state))
-
-    if experiment == 'ra':
-        pass
     
     return hparams
 

@@ -1,5 +1,4 @@
 import copy
-import os
 from os.path import join
 
 import torch
@@ -10,7 +9,6 @@ from sklearn.utils import _print_elapsed_time
 from amhelpers.amhelpers import seed_hash
 
 from .models import hparam_registry as hprm
-from .models import SwitchPropensityEstimator
 from .data.utils import *
 from .data import get_data_handler_from_config
 from . import (
@@ -152,11 +150,6 @@ class Pipeline(pipeline.Pipeline):
 def create_pipeline(config, estimator_name):
     data_handler = get_data_handler_from_config(config)
 
-    is_switch_estimator = False
-    if estimator_name.startswith('switch'):
-        estimator_name = estimator_name.split('_')[1]
-        is_switch_estimator = True
-
     # Should this seed depend on the estimator?
     seed = config['hparams']['seed']
     cont_feat_trans = continuous_feature_transformation[estimator_name]
@@ -172,27 +165,12 @@ def create_pipeline(config, estimator_name):
     else:
         input_dim = output_dim = None
     
-    if is_switch_estimator:
-        estimator_s = _create_estimator(
-            config,
-            estimator_name,
-            input_dim=input_dim,
-            output_dim=2
-        )
-        estimator_t = _create_estimator(
-            config,
-            estimator_name,
-            input_dim=input_dim,
-            output_dim=output_dim
-        )
-        estimator = SwitchPropensityEstimator(estimator_s, estimator_t)
-    else:
-        estimator = _create_estimator(
-            config,
-            estimator_name,
-            input_dim=input_dim,
-            output_dim=output_dim
-        )
+    estimator = _create_estimator(
+        config,
+        estimator_name,
+        input_dim=input_dim,
+        output_dim=output_dim
+    )
 
     steps = [('preprocessor', preprocessor), ('estimator', estimator)]
     return Pipeline(steps)
@@ -209,14 +187,15 @@ def load_best_pipeline(
     scores = pd.read_csv(scores_path)
     if sweep_parameter_value is None:
         sweep = 'sweep'
-        mask = (scores.trial == trial) & \
-            (scores.estimator_name == estimator_name)
+        mask = scores.trial.eq(trial) & scores.estimator_name.eq(estimator_name)
     else:
         sweep_parameter = scores.columns[0]
         sweep = f'sweep_{sweep_parameter}_{sweep_parameter_value}'
-        mask = (scores[sweep_parameter] == sweep_parameter_value) & \
-            (scores.trial == trial) & \
-            (scores.estimator_name == estimator_name)
+        mask = (
+            scores[sweep_parameter].eq(sweep_parameter_value)
+            & scores.trial.eq(trial)
+            & scores.estimator_name.eq(estimator_name)
+        )
     if mask.sum() == 0:
         raise FileNotFoundError(
             f"No results found for model '{estimator_name}' in trial {trial}."
@@ -228,47 +207,3 @@ def load_best_pipeline(
     if return_results_path:
         return pipeline, results_path
     return pipeline
-
-
-def load_experiment_pipeline(experiment_path, estimator_name, trial=None, period=None):
-    """Load pipelines from experiment_path
-    
-    Parameters
-    ------------
-    period: Defaults as None, to find the 'sweep' folder. If not, specify a period to load pipelines in 'sweep_period_x' folder.
-    trial: Default as None, to load all trial. If not, specify a trial to load.
-
-    Return:
-    ------------
-    pipelines
-    
-    """
-    pipelines = {}
-    
-    base_path = experiment_path
-    if period is not None:
-        base_path = os.path.join(base_path, f'sweep_periods_{period}')
-    else:
-        base_path = os.path.join(base_path, 'sweep')
-    
-    if trial is not None:
-        trial_paths = [os.path.join(base_path, f'trial_{trial:02d}')]
-    else:
-        trial_paths = [os.path.join(base_path, d) for d in os.listdir(base_path) if os.path.isdir(os.path.join(base_path, d)) and d.startswith('trial_')]
-    for trial_path in trial_paths:
-        if not os.path.exists(trial_path):
-            continue  
-
-        for experiment_dir in sorted(os.listdir(trial_path)):
-            if estimator_name in experiment_dir:
-                model_pipeline_path = os.path.join(trial_path, experiment_dir, 'pipeline.pkl')
-                if os.path.exists(model_pipeline_path):
-                    pipelines[experiment_dir] = joblib.load(model_pipeline_path)
-
-    if not pipelines:
-        if trial is not None:
-            raise FileNotFoundError(f"No pipelines found for model '{estimator_name}' in trial {trial}")
-        else:
-            raise FileNotFoundError(f"No pipelines found for model '{estimator_name}' in any trial")
-
-    return pipelines

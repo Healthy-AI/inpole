@@ -4,10 +4,6 @@ from amhelpers.amhelpers import seed_hash
 from .. import OTHER_ESTIMATORS
 
 
-# @TODO: Add hyperparameters for the following estimators and datasets:
-# - fasterrisk
-
-
 def _hparams(estimator_name, experiment, seed):
     hparams = {}
 
@@ -75,24 +71,20 @@ def _hparams(estimator_name, experiment, seed):
         _hparam('memory_par', 0.1, lambda r: r.choice([0.01, 0.1]))
         
     # =========================================================================
-    # Experiment-DEPENDENT parameters (RA/Switch).
+    # Experiment-DEPENDENT parameters (RA).
     # =========================================================================
-        
-    if experiment == 'switch' and estimator_name == 'dt':
-        hparams.pop('max_depth')
-        _hparam('max_depth', None, lambda r: r.choice([2, 3, 4, 5, 6, 7, 8]))
 
-    if experiment in ['ra', 'switch'] and estimator_name not in OTHER_ESTIMATORS:
+    if experiment == 'ra' and estimator_name not in OTHER_ESTIMATORS:
         _hparam('lr', 1.0e-3, lambda r: 10. ** r.choice([-3, -2]))
         _hparam('max_epochs', 50, lambda r: 50)
     
-    if experiment in ['ra', 'switch'] and estimator_name in ['sdt', 'mlp', 'pronet']:
+    if experiment == 'ra' and estimator_name in ['sdt', 'mlp', 'pronet']:
         _hparam('batch_size', 128, lambda r: r.choice([128, 256]))
 
-    if experiment in ['ra', 'switch'] and estimator_name in ['rdt', 'rnn', 'prosenet']:
+    if experiment == 'ra' and estimator_name in ['rdt', 'rnn', 'prosenet']:
         _hparam('batch_size', 32, lambda r: r.choice([32, 64]))
 
-    if experiment in ['ra', 'switch'] and estimator_name in [
+    if experiment == 'ra' and estimator_name in [
         'truncated_rdt', 'truncated_rnn', 'truncated_prosenet'
     ]:
         _hparam('batch_size', 64, lambda r: r.choice([64, 128]))
@@ -101,11 +93,6 @@ def _hparams(estimator_name, experiment, seed):
         'pronet', 'prosenet', 'truncated_prosenet'
     ]:
         _hparam('module__num_prototypes', 10, lambda r: r.choice([5, 10, 15, 20, 25, 30]))
-    
-    if experiment == 'switch' and estimator_name in [
-        'pronet', 'prosenet', 'truncated_prosenet'
-    ]:
-        _hparam('module__num_prototypes', 2, lambda r: r.choice([2, 4, 6, 8, 10]))
 
     # =========================================================================
     # Experiment-DEPENDENT parameters (ADNI).

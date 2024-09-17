@@ -7,17 +7,14 @@ from .models.utils import expects_groups
 from .data.utils import (
     get_aggregation_index,
     check_fit_preprocessor,
-    get_feature_names,
-    get_shifted_features
+    get_feature_names
 )
 from .models import (
-    SwitchPropensityEstimator,
     RiskSlimClassifier,
     FasterRiskClassifier,
     FRLClassifier,
     RuleFitClassifier,
-    DecisionTreeClassifier,
-    CalibratedClassifierCV
+    DecisionTreeClassifier
 )
 from .data import get_data_handler_from_config, is_treatment_switch
 from .data.utils import drop_shifted_columns
@@ -29,33 +26,10 @@ ALL_NET_ESTIMATORS = NET_ESTIMATORS | RECURRENT_NET_ESTIMATORS
 
 
 def is_net_estimator(estimator_name):
-    return estimator_name in ALL_NET_ESTIMATORS or (
-        estimator_name.startswith('switch') and
-        estimator_name.split('_')[-1] in ALL_NET_ESTIMATORS
-    )
+    return estimator_name in ALL_NET_ESTIMATORS
 
 
-def _get_previous_therapy_index(feature_names, prev_therapy_prefix):
-    shifted_features = get_shifted_features(feature_names)
-    prev_therapy_columns = [
-        s for s in feature_names 
-        if (
-            s.startswith(prev_therapy_prefix) 
-            and not 'agg' in s
-            and not s in shifted_features
-        )
-    ]
-    prev_therapy_index = np.array(
-        [np.flatnonzero(feature_names == c).item() for c in prev_therapy_columns]
-    )
-    if len(prev_therapy_index) == 0:
-        raise ValueError(
-            f"No previous therapies found with prefix '{prev_therapy_prefix}'."
-        )
-    return prev_therapy_index
-
-
-def train(config, estimator_name, calibrate=False):
+def train(config, estimator_name):
     pipeline = create_pipeline(config, estimator_name)
     preprocessor, estimator = pipeline.named_steps.values()
 
@@ -100,17 +74,7 @@ def train(config, estimator_name, calibrate=False):
         preprocessor = check_fit_preprocessor(preprocessor, X_train, y_train)
         fit_params['estimator__preprocessor'] = preprocessor
 
-    if isinstance(estimator, SwitchPropensityEstimator):
-        feature_names = get_feature_names(preprocessor, X_train, y_train)
-        prefix = f'prev_{data_handler.TREATMENT}_'
-        prev_therapy_index = _get_previous_therapy_index(feature_names, prefix)
-        fit_params['estimator__prev_therapy_index'] = prev_therapy_index
-
     pipeline.fit(X_train, y_train, **fit_params)
-    
-    if calibrate:
-        pipeline = CalibratedClassifierCV(pipeline, method='isotonic', cv='prefit')
-        pipeline.fit(X_valid, y_valid)
     
     return pipeline
 
@@ -148,11 +112,8 @@ def predict(
     
     if estimator_name.startswith('truncated'):
         X = drop_shifted_columns(X)
-
-    estimator = pipeline.estimator[-1] \
-        if isinstance(pipeline, CalibratedClassifierCV) else pipeline[-1]
     
-    if not expects_groups(estimator) and not data_handler.aggregate_history:
+    if not expects_groups(pipeline[-1]) and not data_handler.aggregate_history:
        X = X.drop(columns=data_handler.GROUP)
 
     metrics = [

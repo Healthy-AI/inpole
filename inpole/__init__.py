@@ -5,7 +5,6 @@ from .data import *
 EXPERIMENTS = {
     'ra': RAData,
     'adni': ADNIData,
-    'switch': SwitchData,
     'sepsis': SepsisData,
     'copd': COPDData
 }
@@ -40,4 +39,3 @@ ESTIMATORS = (
     list(RECURRENT_NET_ESTIMATORS) +
     list(OTHER_ESTIMATORS)
 )
-ESTIMATORS += list(map(lambda n: f'switch_{n}', ESTIMATORS))

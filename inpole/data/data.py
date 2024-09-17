@@ -39,7 +39,6 @@ __all__ = [
     'get_data_handler_from_config',
     'RAData',
     'ADNIData',
-    'SwitchData',
     'SepsisData',
     'COPDData'
 ]
@@ -189,7 +188,7 @@ class Data(ABC):
         return hparams
     
     def get_preprocessing_steps(self, cont_feat_trans):
-        # @TODO: Rename the second step (feature_selector).
+        # @TODO: Rename the second step.
         return (
             ('column_transformer', self.get_column_transformer(cont_feat_trans)),
             ('feature_selector', self.get_feature_selector())
@@ -244,9 +243,11 @@ class Data(ABC):
     def get_feature_selector(self):
         steps = []
         if self.aggregate_history:
-            aggregator = FunctionTransformer(self._aggregate_history,
-                                             feature_names_out=self._get_feature_names_out,
-                                             kw_args={'reduction': self.reduction})
+            aggregator = FunctionTransformer(
+                self._aggregate_history,
+                feature_names_out=self._get_feature_names_out,
+                kw_args={'reduction': self.reduction}
+            )
         else:
             aggregator = None
         if self.max_features is None:
@@ -382,8 +383,9 @@ class Data(ABC):
         Xg = pd.concat([X, groups], axis=1)
 
         if self.test_size > 0:
-            gss = GroupShuffleSplit(n_splits=1, test_size=self.test_size, 
-                                    random_state=self.seed)
+            gss = GroupShuffleSplit(
+                n_splits=1, test_size=self.test_size, random_state=self.seed
+            )
             ii_train, ii_test = next(gss.split(X, y, groups))
             
             Xg_train, y_train = Xg.iloc[ii_train], y[ii_train]
@@ -398,8 +400,9 @@ class Data(ABC):
             train_size = 1 - self.test_size
             _valid_size = self.valid_size / train_size
             
-            gss = GroupShuffleSplit(n_splits=1, test_size=_valid_size, 
-                                    random_state=self.seed)
+            gss = GroupShuffleSplit(
+                n_splits=1, test_size=_valid_size, random_state=self.seed
+            )
             ii_train, ii_valid = next(gss.split(Xg_train, y_train, groups_train))
             
             Xg_valid, y_valid = Xg_train.iloc[ii_valid], y_train[ii_valid]
@@ -443,11 +446,14 @@ class RAData(Data):
 
         # Categorical columns.
         categorical_column_selector = make_column_selector(dtype_include='category')
+        ohe = OneHotEncoder(
+            drop='if_binary',
+            handle_unknown='ignore',
+            sparse_output=False
+        )
         categorical_column_steps = [
             ('imputer', SimpleImputer(strategy='most_frequent')),
-            ('encoder', OneHotEncoder(drop='if_binary', 
-                                      handle_unknown='ignore', 
-                                      sparse_output=False))
+            ('encoder', ohe)
         ]
         categorical_column_pipeline = Pipeline(categorical_column_steps)
 
@@ -501,11 +507,14 @@ class ADNIData(Data):
 
         # Categorical columns.
         categorical_column_selector = make_column_selector(dtype_include='category')
+        ohe = OneHotEncoder(
+            drop='if_binary',
+            handle_unknown='ignore',
+            sparse_output=False
+        )
         categorical_column_steps = [
             ('imputer', None),
-            ('encoder', OneHotEncoder(drop='if_binary', 
-                                      handle_unknown='ignore', 
-                                      sparse_output=False))
+            ('encoder', ohe)
         ]
         categorical_column_pipeline = Pipeline(categorical_column_steps)
 
@@ -524,46 +533,6 @@ class ADNIData(Data):
     
     def _remove_previous_treatment(self, X):
         return X.drop(columns='MRI_previous_outcome')
-
-
-class SwitchData(RAData):
-    def __init__(self, *, include_therapies=False, **kwargs):
-        self.include_therapies = include_therapies
-        super().__init__(**kwargs)
-
-    def _add_previous_treatment(self, X, data):
-        y = data[self.TREATMENT]
-        groups = data[self.GROUP]
-        y_encoded = LabelEncoder().fit_transform(y)
-        y = pd.Series(y_encoded, index=y.index, name=y.name)
-        y = y.groupby(groups).diff()
-        y = y.where(y.isna(), y != 0)  # Keep the NaNs
-        previous_action = y.groupby(groups).shift()
-        previous_action.replace({True: 'switch', False: 'stay'}, inplace=True)
-        previous_action.fillna(self.fillna_value, inplace=True)
-        previous_action.rename('prev_action', inplace=True)
-        previous_action = previous_action.astype('category')
-        X = pd.concat([X, previous_action], axis=1)
-        if self.include_therapies:
-            return super()._add_previous_treatment(X, data)
-        else:
-            return X
-    
-    def load(self):
-        # @TODO: Include non-registry visits when determining the action. 
-        # Note that `y` returned from super().load() does not contain therapies 
-        # prescribed at non-registry visits.
-        X, y, groups = super().load()
-        y_encoded = LabelEncoder().fit_transform(y)
-        y = pd.Series(y_encoded, index=y.index, name=y.name)
-        y = y.groupby(groups).diff()
-        # Remove the first visit for each patient since we need two
-        # consecutive visits to determine the action.
-        X = X[~y.isna()]
-        groups = groups[~y.isna()]
-        y = y.dropna()
-        y = (y != 0).astype(int)
-        return X, y, groups
 
 
 class SepsisData(Data):
@@ -668,8 +637,9 @@ class SepsisData(Data):
 
     def get_log_scale_transformer(self):
         return make_pipeline(
-            preprocessing.FunctionTransformer(self._add_log, 
-                                              feature_names_out='one-to-one'),
+            preprocessing.FunctionTransformer(
+                self._add_log, feature_names_out='one-to-one'
+            ),
             StandardScaler()
         )
 

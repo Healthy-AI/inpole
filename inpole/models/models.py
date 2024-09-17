@@ -23,11 +23,8 @@ from skorch.dataset import unpack_data, get_len
 
 import sklearn.linear_model as lm
 import sklearn.dummy as dummy
-import sklearn.calibration as calibration
 import sklearn.tree as tree
 import sklearn.metrics as metrics
-from sklearn.base import BaseEstimator
-from sklearn.utils.validation import check_is_fitted
 
 from FRLOptimization import (
     mine_antecedents,
@@ -64,7 +61,6 @@ __all__ = [
     'DummyClassifier',
     'ProNetClassifier',
     'ProSeNetClassifier',
-    'SwitchPropensityEstimator',
     'RuleFitClassifier',
     'RiskSlimClassifier',
     'FasterRiskClassifier',
@@ -73,8 +69,7 @@ __all__ = [
     'FRLClassifier',
     'TruncatedRNNClassifier',
     'TruncatedProSeNetClassifier',
-    'TruncatedRDTClassifier',
-    'CalibratedClassifierCV',
+    'TruncatedRDTClassifier'
 ]
 
 
@@ -1082,107 +1077,6 @@ class TruncatedRDTClassifier(RDTClassifer):
         return y_pred_out
 
 
-class SwitchPropensityEstimator(ClassifierMixin, BaseEstimator):
-    def __init__(self, estimator_s=None, estimator_t=None):        
-        if estimator_s is None:
-            estimator_s = tree.DecisionTreeClassifier()
-        if estimator_t is None:
-            estimator_t = tree.DecisionTreeClassifier()
-        
-        self.estimator_s = estimator_s
-        self.estimator_t = estimator_t
-    
-    @property
-    def estimators(self):
-        """Return the (unfitted) estimators."""
-        return [self.estimator_s, self.estimator_t]
-    
-    def _split_data(self, X, y, prev_therapy_index):
-        y_prev = np.argmax(X[:, prev_therapy_index], axis=1)
-        y_switch = 1 * (y_prev != y)
-        switch = y_switch > 0
-        return X, y_switch, X[switch], y[switch]
-    
-    def fit(self, X, y, prev_therapy_index, X_valid=None, y_valid=None):
-        """Fit model.
-        
-        We assume that the labels `y` are encoded into values between 0 and 
-        n_classes-1. We also assume that `prev_therapy_index` contains 
-        n_classes elements.
-        """
-
-        self._check_fit_args(X, y, prev_therapy_index)
-        
-        self.prev_therapy_index_ = prev_therapy_index
-
-        Xs, ys, Xt, yt = self._split_data(X, y, prev_therapy_index)
-        
-        fit_params_s, fit_params_t = {}, {}
-        if X_valid is not None and y_valid is not None:
-            Xs_valid, ys_valid, Xt_valid, yt_valid = self._split_data(
-                X_valid, y_valid, prev_therapy_index
-            )
-            fit_params_s['X_valid'] = Xs_valid
-            fit_params_s['y_valid'] = ys_valid
-            fit_params_t['X_valid'] = Xt_valid
-            fit_params_t['y_valid'] = yt_valid
-        
-        self.estimator_s_ = self.estimator_s.fit(Xs, ys, **fit_params_s)
-        self.estimator_t_ = self.estimator_t.fit(Xt, yt, **fit_params_t)
-        
-        self.classes_ = self.estimator_t_.classes_
-        
-        return self
-
-    def _check_fit_args(self, X, y, prev_therapy_index):
-        # Check assumptions.
-        n_classes = len(prev_therapy_index)
-        assert np.array_equal(np.unique(y), np.arange(n_classes))
-
-        # Check inputs `X`.
-        assert isinstance(X, np.ndarray)
-
-        # Check labels `y`.
-        assert isinstance(y, np.ndarray)
-        if not np.issubdtype(y.dtype, np.number):
-            raise ValueError("`y` must be numeric.")
-        
-        # Check indexes.
-        assert isinstance(prev_therapy_index, np.ndarray)
-        if not np.issubdtype(prev_therapy_index.dtype, np.integer):
-            raise ValueError("`prev_therapy_index` must be an integer array.")
-    
-    def predict_proba(self, X):
-        check_is_fitted(self)
-
-        # Make predictions.
-        y_sp = self.estimator_s_.predict_proba(X)[:, 1].reshape(-1, 1)
-        y_tp = self.estimator_t_.predict_proba(X)
-
-        # Extract the previous treatment.
-        y_prev = X[:, self.prev_therapy_index_].astype(np.float32)
-        
-        # Remove probability of the previous treatment and renormalize.
-        #
-        # @TODO: Should we perhaps use a prior instead of equal probabilities below?
-        y_tp = (1-y_prev) * y_tp
-        mask = y_tp.sum(axis=1) == 0
-        y_tp[mask] = 1 - y_prev[mask]  # Assign equal probability to all treatments except the previous one
-        y_tp = y_tp / y_tp.sum(axis=1, keepdims=True)
-        
-        # Mix in probability of staying.
-        y_p = (1-y_sp)*y_prev + y_sp*y_tp
-        
-        y_p_sum = y_p.sum(axis=1)
-        assert np.allclose(y_p_sum, np.ones_like(y_p_sum))
-        
-        return y_p
-    
-    def predict(self, X):
-        yp = self.predict_proba(X)
-        return np.argmax(yp, axis=1)
-
-
 class RuleFitClassifier(ClassifierMixin, rulefit.RuleFit):
     def __init__(
         self,
@@ -1564,22 +1458,3 @@ class FRLClassifier(ClassifierMixin):
             elif rule in row_set:
                 return index
         return None
-
-
-class CalibratedClassifierCV(ClassifierMixin, calibration.CalibratedClassifierCV):
-    def __init__(
-        self,
-        estimator=None,
-        *,
-        method='sigmoid',
-        cv=None,
-        n_jobs=None,
-        ensemble=True,
-    ):
-        super().__init__(
-            estimator=estimator,
-            method=method,
-            cv=cv,
-            n_jobs=n_jobs,
-            ensemble=ensemble
-        )
