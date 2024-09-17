@@ -5,7 +5,7 @@ import torch
 import pandas as pd
 
 
-def _print_log(s):
+def print_log(s):
     print(s)
     sys.stdout.flush()
 

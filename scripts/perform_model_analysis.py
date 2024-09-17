@@ -15,7 +15,7 @@ from amhelpers.config_parsing import load_config
 
 from inpole.data import get_data_handler_from_config
 from inpole.pipeline import load_best_pipeline
-from inpole.utils import _print_log
+from inpole.utils import print_log
 from inpole.data import RAData, SepsisData
 from inpole import ESTIMATORS
 from inpole.data.data import discretize_doses
@@ -111,7 +111,7 @@ if __name__ == '__main__':
     parser.add_argument('--out_path', type=str, required=True)
     args = parser.parse_args()
 
-    _print_log(f"Experiment: {args.experiment}")
+    print_log(f"Experiment: {args.experiment}")
 
     if args.data_path.endswith('.csv'):
         data = pd.read_csv(args.data_path)
@@ -169,7 +169,7 @@ if __name__ == '__main__':
     
                 reduction = data_handler.reduction if r'\bar{H}_t' in state else 'none'
     
-                _print_log(f"State: {state} | Reduction: {reduction} | Trial: {trial} | Estimator: {estimator_name}")
+                print_log(f"State: {state} | Reduction: {reduction} | Trial: {trial} | Estimator: {estimator_name}")
     
                 # Collect probabilities.
                 probas = pipeline.predict_proba(X)
@@ -222,6 +222,6 @@ if __name__ == '__main__':
                 rho = probas_y_grouped.prod()
                 out['rho'] += [(state, reduction, trial, estimator_name, -1, rho.tolist())]
 
-    _print_log("Saving final data...")
+    print_log("Saving final data...")
     out_file_name = f'results_{args.experiment}.pickle'
     joblib.dump(out, join(args.out_path, out_file_name))
