@@ -11,7 +11,7 @@ try:
 except ModuleNotFoundError:
     estimators_kwargs = {}
 
-TRAIN_SCRIPT_PATH = 'scripts/slurm_templates/training'
+TRAIN_SCRIPT_PATH = 'scripts/slurm/training_template'
 
 ACCOUNT = 'NAISS2023-22-686'
 

@@ -15,8 +15,8 @@ if __name__ == '__main__':
         estimator = df.estimator_name[0]
         if estimator in ['sdt', 'rdt', 'truncated_rdt']:
             return df[
-                (df.subset == 'valid') &
-                (df.estimator_name == f'{estimator}_aligned')
+                (df.subset == 'valid')
+                & (df.estimator_name == f'{estimator}_aligned')
             ][metric].item()
         return df[df.subset == 'valid'][metric].item()
     
