@@ -150,14 +150,14 @@ The flag `--nv` ensures that GPU resources can be accessed from within the conta
 
 ### Run all experiments on the Alvis cluster
 
-To reproduce all experiments, use the bash script [`scripts/slurm/run_experiments.sh`](scripts/slurm/run_experiments.sh). This script takes as input a config file and a text file specifiying all the state and model combinations to be considered. The file [`settings.csv`](`settings.csv`) contains the states and models used for for RA, Sepsis, and COPD. For ADNI, risk scores (riskslim) were also used for all states except $S_t=H_t$.
+To reproduce all experiments, use the bash script [`scripts/slurm/run_experiments.sh`](scripts/slurm/run_experiments.sh). This script takes as input a config file and a text file specifiying all the state and model combinations to be considered. The file [`settings.csv`](settings.csv) contains the states and models used for for RA, Sepsis, and COPD. For ADNI, risk scores (riskslim) were also used for all states except $S_t=H_t$.
 
 **Example.** Run all RA experiments on Alvis:
 ```bash
 ./scripts/slurm/run_experiments.sh settings.csv configs/ra.yml
 ```
 
-The script calls the Python script [`scripts/slurm/run_experiment.py`](`scripts/slurm/run_experiment.py`), which in turn uses the `sbatch` command to submit jobs to Alvis. Since `sbatch` is not available from within the container, a separate environment is needed. To create this environment, run the following commands:
+The script calls the Python script [`scripts/slurm/run_experiment.py`](scripts/slurm/run_experiment.py), which in turn uses the `sbatch` command to submit jobs to Alvis. Since `sbatch` is not available from within the container, a separate environment is needed. To create this environment, run the following commands:
 ```bash
 cd $HOME/inpole
 ml purge && ml Python/3.10.8-GCCcore-12.2.0 SciPy-bundle/2023.02-gfbf-2022b PyYAML/6.0-GCCcore-12.2.0
