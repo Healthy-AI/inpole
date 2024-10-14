@@ -2,7 +2,7 @@
 
 # Set arguments.
 n_trials=5
-n_hparams=500
+n_hparams=5
 account='NAISS2023-5-397'
 gpu='T4'
 container_path='/mimer/NOBACKUP/groups/inpole/singularity/inpole_env.sif'
@@ -57,7 +57,7 @@ while IFS=';' read -r state include_context_variables include_previous_treatment
     estimators=$(echo "$estimators" | tr -d '\r')
 
     # Do not use quoting around $estimators, otherwise the script reads in all estimators as a single string.
-    python scripts/run_experiment.py \
+    python scripts/slurm/run_experiment.py \
         --config_path "$config_file" \
         --estimators $estimators \
         --n_trials $n_trials \
