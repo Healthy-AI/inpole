@@ -611,7 +611,34 @@ class RNNEncoder(nn.Module):
 
     def forward(self, inputs):
         assert isinstance(inputs, PackedSequence)
-        encodings, _ = self.rnn(inputs)
+        encodings = self.rnn(inputs)[0]
+        encodings = unpack_sequence(encodings)
+        return torch.cat(encodings)
+
+
+class LSTMEncoder(nn.Module):
+    def __init__(
+        self,
+        input_dim,
+        output_dim=64,
+        num_layers=1,
+    ):
+        super(LSTMEncoder, self).__init__()
+
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.num_layers = num_layers
+
+        self.rnn = nn.LSTM(
+            input_dim,
+            output_dim,
+            num_layers=num_layers,
+            batch_first=True
+        )
+
+    def forward(self, inputs):
+        assert isinstance(inputs, PackedSequence)
+        encodings = self.rnn(inputs)[0]
         encodings = unpack_sequence(encodings)
         return torch.cat(encodings)
 

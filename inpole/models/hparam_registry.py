@@ -39,7 +39,7 @@ def _hparams(estimator_name, experiment, seed):
         _hparam('module__encoder__hidden_dims', (32,), lambda r: r.choice(hidden_dims))
         _hparam('module__encoder__output_dim', 32, lambda r: r.choice([16, 32, 64]))
     
-    if estimator_name in ['rnn', 'prosenet', 'truncated_rnn', 'truncated_prosenet']:
+    if estimator_name in ['rnn', 'lstm', 'prosenet', 'truncated_rnn', 'truncated_prosenet']:
         _hparam('module__encoder__output_dim', 32, lambda r: r.choice([16, 32, 64]))
         _hparam('module__encoder__num_layers', 1, lambda r: r.choice([1, 2]))
     
@@ -81,7 +81,7 @@ def _hparams(estimator_name, experiment, seed):
     if experiment == 'ra' and estimator_name in ['sdt', 'mlp', 'pronet']:
         _hparam('batch_size', 128, lambda r: r.choice([128, 256]))
 
-    if experiment == 'ra' and estimator_name in ['rdt', 'rnn', 'prosenet']:
+    if experiment == 'ra' and estimator_name in ['rdt', 'rnn', 'lstm', 'prosenet']:
         _hparam('batch_size', 32, lambda r: r.choice([32, 64]))
 
     if experiment == 'ra' and estimator_name in [
@@ -119,7 +119,7 @@ def _hparams(estimator_name, experiment, seed):
     if experiment in ['sepsis', 'copd'] and estimator_name in ['sdt', 'mlp', 'pronet']:
         _hparam('batch_size', 512, lambda r: r.choice([256, 512, 1024]))
 
-    if experiment in ['sepsis', 'copd'] and estimator_name in ['rdt', 'rnn', 'prosenet']:
+    if experiment in ['sepsis', 'copd'] and estimator_name in ['rdt', 'rnn', 'lstm', 'prosenet']:
         _hparam('batch_size', 32, lambda r: r.choice([16, 32, 64]))
 
     if experiment in ['sepsis', 'copd'] and estimator_name in [

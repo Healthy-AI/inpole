@@ -47,6 +47,7 @@ from .modules import (
     PrototypeNetwork,
     NNEncoder,
     RNNEncoder,
+    LSTMEncoder,
     SDT,
     RDT
 )
@@ -66,6 +67,7 @@ __all__ = [
     'FasterRiskClassifier',
     'MLPClassifier',
     'RNNClassifier',
+    'LSTMClassifier',
     'FRLClassifier',
     'TruncatedRNNClassifier',
     'TruncatedProSeNetClassifier',
@@ -1040,6 +1042,19 @@ class RNNClassifier(NeuralNetClassifier):
             **kwargs
         )
     
+    def infer(self, x, **fit_params):
+        return super().infer(x, **fit_params)[0]
+
+
+class LSTMClassifier(NeuralNetClassifier):
+    def __init__(self, **kwargs):
+        super().__init__(
+            module=PrototypeNetwork,
+            module__encoder=LSTMEncoder,
+            module__num_prototypes=-1,
+            **kwargs
+        )
+
     def infer(self, x, **fit_params):
         return super().infer(x, **fit_params)[0]
 

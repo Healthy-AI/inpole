@@ -19,6 +19,7 @@ RECURRENT_NET_ESTIMATORS = {
     'rdt': RDTClassifer,
     'prosenet': ProSeNetClassifier,
     'rnn': RNNClassifier,
+    'lstm': LSTMClassifier,
     'truncated_rnn': TruncatedRNNClassifier,
     'truncated_prosenet': TruncatedProSeNetClassifier,
     'truncated_rdt': TruncatedRDTClassifier

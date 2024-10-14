@@ -33,6 +33,7 @@ continuous_feature_transformation = {
     'prosenet': 'scale',
     'rdt': 'discretize',
     'rnn': 'scale',
+    'lstm': 'scale',
     'rulefit': 'scale',
     'riskslim': 'discretize',
     'sdt': 'discretize',
