@@ -28,7 +28,6 @@ __all__ = [
     'get_params_and_scores',
     'get_model_complexities_and_scores',
     'plot_model_complexity',
-    'get_node_ids_along_path',
     'plot_tree',
     'describe_categorical',
     'describe_numerical',
