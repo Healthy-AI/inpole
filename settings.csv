@@ -14,4 +14,4 @@ H_{(t-2):t}, \bar{H}_t;true;true;true;sum;true;2;lr dt mlp
 H_{(t-0):t}, \bar{H}_t;true;true;true;mean;true;0;lr dt mlp
 H_{(t-1):t}, \bar{H}_t;true;true;true;mean;true;1;lr dt mlp
 H_{(t-2):t}, \bar{H}_t;true;true;true;mean;true;2;lr dt mlp
-H_t;true;true;false;null;false;0;rdt prosenet rnn
+H_t;true;true;false;null;false;0;rdt prosenet rnn lstm
