@@ -15,7 +15,7 @@ metrics:
 - sce
 
 data:
-  path: /mimer/NOBACKUP/groups/oovgen/inpole/data/copd/COPD_2003.csv
+  path: /mimer/NOBACKUP/groups/inpole/data/COPD_2003.csv
   valid_size: 0.2
   test_size: 0.2
   seed: 0

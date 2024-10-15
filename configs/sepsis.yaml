@@ -15,7 +15,7 @@ metrics:
 - sce
 
 data:
-  path: /mimer/NOBACKUP/groups/inpole/data/sepsis_data.csv
+  path: /mimer/NOBACKUP/groups/inpole/data/sepsis_data.pkl
   valid_size: 0.2
   test_size: 0.2
   seed: 0
