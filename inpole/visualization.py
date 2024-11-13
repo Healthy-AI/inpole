@@ -1,13 +1,11 @@
 import os
 import re
-import warnings
 from pathlib import Path
 from os.path import join
 
 import joblib
 import pandas as pd
 import numpy as np
-import colorcet as cc
 import seaborn as sns
 import matplotlib.pyplot as plt
 from seaborn._statistics import EstimateAggregator
@@ -18,7 +16,6 @@ from sklearn.tree._reingold_tilford import Tree
 from pandas.api.types import is_categorical_dtype, is_bool_dtype
 
 from inpole.pipeline import _get_estimator_params, load_best_pipeline
-from inpole.utils import merge_dicts
 from inpole.models.models import get_model_complexity
 from inpole.data import get_data_handler_from_config
 
@@ -690,3 +687,31 @@ def describe_dataset(data, c_group, c_age, c_gender, i_female, v_female=None):
     print(f"Age in years, median (IQR): {age_bl_median:.1f} ({age_bl_iqr[0]:.1f}, {age_bl_iqr[1]:.1f})")
     print(f"Female, n (%): {female_bl_count} ({female_bl_pct:.1f})")
     print(f"Stages, median IQR): {n_stages_median:.1f} ({n_stages_iqr[0]:.1f}, {n_stages_iqr[1]:.1f})")
+
+
+def get_cpr_scores(results_path):
+    from sklearn.metrics import roc_auc_score
+    from amhelpers.metrics import ece as ece_score
+
+    all_scores = []
+
+    def get_auc_and_ece(root, file):
+        data = joblib.load(os.path.join(root, file))
+        return (
+            roc_auc_score(data['true'], data['preds']),
+            ece_score(data['true'].flatten(), data['preds']),
+        )
+
+    for root, _, files in os.walk(results_path):
+        for file in files:
+            if 'rnn' in file.lower() and file.endswith('pkl'):
+                auc, ece = get_auc_and_ece(root, file)
+                all_scores.append(['RNN', auc, ece])
+
+            if 'lstm' in file.lower() and file.endswith('pkl'):
+                auc, ece = get_auc_and_ece(root, file)
+                all_scores.append(['LSTM', auc, ece])
+
+    all_scores = pd.DataFrame(all_scores, columns=['Estimator', 'AUROC', 'ECE'])
+
+    return all_scores
