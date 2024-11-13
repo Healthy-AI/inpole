@@ -5,6 +5,11 @@ import itertools
 import numpy as np
 import pandas as pd
 
+from .utils import get_feature_names
+from .data_handler import get_data_handler_from_config
+from ..utils import load_config
+from ..visualization import load_best_pipeline
+
 try:
     from .corevitas import COREVITAS_DATA
 except ImportError:
@@ -492,3 +497,44 @@ def make_copd(copd_path, out_path):
     copd.limit_missingness()
     copd.impute_missing_values()
     copd.save_data(os.path.join(out_path, 'copd.pkl'))
+
+
+# =============================================================================
+# == CPR ======================================================================
+# =============================================================================
+
+def prepare_cpr_data(experiment_path, save_to, experiment='adni'):
+    def format_cpr_data(preprocessor, X, y):
+        Xt = preprocessor.transform(X)
+        columns = get_feature_names(preprocessor).tolist() + ['id']
+        D = pd.DataFrame(Xt, columns=columns)
+        D['time'] = D.groupby('id').cumcount() + 1
+        D['target'] = y
+        return D
+
+    try:
+        load_best_pipeline(experiment_path, 1, 'rnn')
+    except FileNotFoundError:
+        raise ValueError(
+            "The specified experiment path does not contain any results for "
+            "sequence models. To prepare the CPR data, a pipeline that "
+            "includes a sequence model estimator must be available."
+        )
+
+    n_trials = os.listdir(os.path.join(experiment_path, 'sweep'))
+    for i_trial in range(n_trials):
+        pipeline, results_path = load_best_pipeline(
+            experiment_path, i_trial + 1, 'rnn', return_results_path=True
+        )
+        preprocessor = pipeline.named_steps['preprocessor']
+
+        config_path = os.path.join(results_path, 'config.yaml')
+        config = load_config(config_path)
+        data_handler = get_data_handler_from_config(config)
+
+        splits =  data_handler.get_splits()
+
+        for i, subset in enumerate(['train', 'valid', 'test']):
+            D = format_cpr_data(preprocessor, *splits[i])
+            file_name = f'{experiment}_{i_trial + 1}_{subset}.pkl'
+            D.to_pickle(os.path.join(save_to, file_name))
