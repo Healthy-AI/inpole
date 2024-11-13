@@ -35,6 +35,7 @@ __all__ = [
     'get_table_sections',
     'get_wide_table',
     'describe_dataset',
+    'get_cpr_scores',
 ]
 
 
