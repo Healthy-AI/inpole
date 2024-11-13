@@ -25,44 +25,44 @@ metrics = ['auc_macro', 'auc_weighted']
 
 
 sepsis_paths = [
-    (r'$X_t$',                '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2120_sweep'),
-    (r'$A_{t-1}$',            '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2121_sweep'),
-    (r'$H_{(0)}$',            '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2122_sweep'),
-    (r'$\bar{H}_t$',          '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2123_sweep'),  # max
-    (r'$H_{(0)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2124_sweep'),  # max
-    (r'$H_{(1)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2125_sweep'),  # max
-    (r'$H_{(2)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2126_sweep'),  # max
-    (r'$\bar{H}_t$',          '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2127_sweep'),  # sum
-    (r'$H_{(0)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2128_sweep'),  # sum
-    (r'$H_{(1)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2129_sweep'),  # sum
-    (r'$H_{(2)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2130_sweep'),  # sum
-    (r'$\bar{H}_t$',          '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2131_sweep'),  # mean
-    (r'$H_{(0)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2132_sweep'),  # mean
-    (r'$H_{(1)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2133_sweep'),  # mean
-    (r'$H_{(2)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2134_sweep'),  # mean
-    (r'$H_t$',                    '/mimer/NOBACKUP/groups/inpole/results/sepsis/20240831_2135_sweep'),
+    (r'$X_t$',                '/mimer/NOBACKUP/groups/inpole/results/sepsis/20241015_1351_sweep'),
+    (r'$A_{t-1}$',            '/mimer/NOBACKUP/groups/inpole/results/sepsis/20241015_1352_sweep'),
+    (r'$H_{(0)}$',            '/mimer/NOBACKUP/groups/inpole/results/sepsis/20241015_1353_sweep'),
+    (r'$\bar{H}_t$',          '/mimer/NOBACKUP/groups/inpole/results/sepsis/20241015_1354_sweep'),  # max
+    (r'$H_{(0)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/sepsis/20241015_1355_sweep'),  # max
+    (r'$H_{(1)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/sepsis/20241015_1356_sweep'),  # max
+    (r'$H_{(2)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/sepsis/20241015_1357_sweep'),  # max
+    (r'$\bar{H}_t$',          '/mimer/NOBACKUP/groups/inpole/results/sepsis/20241015_1358_sweep'),  # sum
+    (r'$H_{(0)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/sepsis/20241015_1359_sweep'),  # sum
+    (r'$H_{(1)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/sepsis/20241015_1400_sweep'),  # sum
+    (r'$H_{(2)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/sepsis/20241015_1401_sweep'),  # sum
+    (r'$\bar{H}_t$',          '/mimer/NOBACKUP/groups/inpole/results/sepsis/20241015_1402_sweep'),  # mean
+    (r'$H_{(0)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/sepsis/20241015_1403_sweep'),  # mean
+    (r'$H_{(1)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/sepsis/20241015_1404_sweep'),  # mean
+    (r'$H_{(2)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/sepsis/20241015_1405_sweep'),  # mean
+    (r'$H_t$',                '/mimer/NOBACKUP/groups/inpole/results/sepsis/20241015_1406_sweep'),
 ]
 
 sepsis_bins = [-0.4, -0.15, 0, 0.15, 0.4]  # Quantiles: [0.1, 0.3, 0.5, 0.7, 0.9]
 
 
 ra_paths = [
-    (r'$X_t$',                '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1931_sweep'),
-    (r'$A_{t-1}$',            '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1932_sweep'),
-    (r'$H_{(0)}$',            '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1933_sweep'),
-    (r'$\bar{H}_t$',          '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1934_sweep'),  # max
-    (r'$H_{(0)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1935_sweep'),  # max
-    (r'$H_{(1)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1936_sweep'),  # max
-    (r'$H_{(2)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1937_sweep'),  # max
-    (r'$\bar{H}_t$',          '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1938_sweep'),  # sum
-    (r'$H_{(0)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1939_sweep'),  # sum
-    (r'$H_{(1)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1940_sweep'),  # sum
-    (r'$H_{(2)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1941_sweep'),  # sum
-    (r'$\bar{H}_t$',          '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1942_sweep'),  # mean
-    (r'$H_{(0)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1943_sweep'),  # mean
-    (r'$H_{(1)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1944_sweep'),  # mean
-    (r'$H_{(2)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1945_sweep'),  # mean
-    (r'$H_t$',                '/mimer/NOBACKUP/groups/inpole/results/ra/20240901_1946_sweep'),
+    (r'$X_t$',                '/mimer/NOBACKUP/groups/inpole/results/ra/20241015_0912_sweep'),
+    (r'$A_{t-1}$',            '/mimer/NOBACKUP/groups/inpole/results/ra/20241015_0913_sweep'),
+    (r'$H_{(0)}$',            '/mimer/NOBACKUP/groups/inpole/results/ra/20241015_0914_sweep'),
+    (r'$\bar{H}_t$',          '/mimer/NOBACKUP/groups/inpole/results/ra/20241015_0915_sweep'),  # max
+    (r'$H_{(0)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/ra/20241015_0916_sweep'),  # max
+    (r'$H_{(1)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/ra/20241015_0917_sweep'),  # max
+    (r'$H_{(2)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/ra/20241015_0918_sweep'),  # max
+    (r'$\bar{H}_t$',          '/mimer/NOBACKUP/groups/inpole/results/ra/20241015_0919_sweep'),  # sum
+    (r'$H_{(0)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/ra/20241015_0920_sweep'),  # sum
+    (r'$H_{(1)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/ra/20241015_0921_sweep'),  # sum
+    (r'$H_{(2)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/ra/20241015_0922_sweep'),  # sum
+    (r'$\bar{H}_t$',          '/mimer/NOBACKUP/groups/inpole/results/ra/20241015_0923_sweep'),  # mean
+    (r'$H_{(0)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/ra/20241015_0924_sweep'),  # mean
+    (r'$H_{(1)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/ra/20241015_0925_sweep'),  # mean
+    (r'$H_{(2)}, \bar{H}_t$', '/mimer/NOBACKUP/groups/inpole/results/ra/20241015_0926_sweep'),  # mean
+    (r'$H_t$',                '/mimer/NOBACKUP/groups/inpole/results/ra/20241015_0927_sweep'),
 ]
 
 ra_bins = [-9.0, -2.8, -1.0, 0.0, 2.6]  # Quantiles: [0.1, 0.3, 0.5, 0.7, 0.9]
