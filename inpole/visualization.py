@@ -713,6 +713,6 @@ def get_cpr_scores(results_path):
                 auc, ece = get_auc_and_ece(root, file)
                 all_scores.append(['LSTM', auc, ece])
 
-    all_scores = pd.DataFrame(all_scores, columns=['Estimator', 'AUROC', 'ECE'])
+    all_scores = pd.DataFrame(all_scores, columns=['Encoder', 'AUROC', 'ECE'])
 
     return all_scores
