@@ -2,7 +2,7 @@
 
 Modeling policies for sequential clinical decision-making based on observational data is useful for describing treatment practices, standardizing frequent patterns in treatment, and evaluating alternative policies. For each task, it is essential that the policy model is interpretable. Learning accurate models requires effectively capturing a patient’s state, either through sequence representation learning or carefully crafted summaries of their medical history. While recent work has favored the former, it remains a question as to how histories should best be represented for interpretable policy modeling.
 
-This repository contains the code used for the experiments in our paper, where we systematically compare various approaches to summarizing patient history for interpretable clinical policy modeling across four sequential decision-making tasks: Alzheimer’s disease (ADNI), rheumatoid arthritis (RA), sepsis, and chronic obstructive pulmonary disease (COPD).
+This repository contains the code used for the experiments in [our paper](https://arxiv.org/abs/2412.07895), where we systematically compare various approaches to summarizing patient history for interpretable clinical policy modeling across four sequential decision-making tasks: Alzheimer’s disease (ADNI), rheumatoid arthritis (RA), sepsis, and chronic obstructive pulmonary disease (COPD).
 
 ## Installation
 
@@ -154,7 +154,7 @@ To reproduce all experiments, use the bash script [`scripts/slurm/run_experiment
 
 **Example.** Run all RA experiments on Alvis:
 ```bash
-./scripts/slurm/run_experiments.sh settings.csv configs/ra.yml
+./scripts/slurm/run_experiments.sh settings.csv configs/ra.yaml
 ```
 
 The script calls the Python script [`scripts/slurm/run_experiment.py`](scripts/slurm/run_experiment.py), which in turn uses the `sbatch` command to submit jobs to Alvis. Since `sbatch` is not available from within the container, a separate environment is needed. To create this environment, run the following commands:
