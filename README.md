@@ -2,7 +2,7 @@
 
 Modeling policies for sequential clinical decision-making based on observational data is useful for describing treatment practices, standardizing frequent patterns in treatment, and evaluating alternative policies. For each task, it is essential that the policy model is interpretable. Learning accurate models requires effectively capturing a patient’s state, either through sequence representation learning or carefully crafted summaries of their medical history. While recent work has favored the former, it remains a question as to how histories should best be represented for interpretable policy modeling.
 
-This repository contains the code used for the experiments in [our paper](https://arxiv.org/abs/2412.07895), where we systematically compare various approaches to summarizing patient history for interpretable clinical policy modeling across four sequential decision-making tasks: Alzheimer’s disease (ADNI), rheumatoid arthritis (RA), sepsis, and chronic obstructive pulmonary disease (COPD).
+This repository contains the code used for the experiments in [our ML4H paper](https://proceedings.mlr.press/v259/matsson25a.html), where we systematically compare various approaches to summarizing patient history for interpretable clinical policy modeling across four sequential decision-making tasks: Alzheimer’s disease (ADNI), rheumatoid arthritis (RA), sepsis, and chronic obstructive pulmonary disease (COPD).
 
 ## Installation
 
@@ -208,7 +208,18 @@ export LOCAL_PROJECT_PATH=$PWD
 
 ## Citation
 
-To be updated.
+If you use this work, please cite it as follows:
+```bib
+@inproceedings{matsson2024how,
+  title={How Should We Represent History in Interpretable Models of Clinical Policies?},
+  author={Matsson, Anton and Stempfle, Lena and Rao, Yaochen and Margolin, Zachary R. and Litman, Heather J. and Johansson, Fredrik D.},
+  booktitle={Proceedings of the 4th Machine Learning for Health Symposium},
+  volume={259},
+  pages={714--734},
+  year={2024},
+  publisher={PMLR}
+}
+```
 
 ## Acknowledgements
 
